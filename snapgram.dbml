@@ -1,0 +1,813 @@
+Project snapgram {
+  database_type: 'PostgreSQL'
+  Note: 'SNAPGRAM DBML v2.1. Seven PostgreSQL DBs, one DB per service. Solid relationships = real FK inside the same DB. Dashed-looking semantics are represented by Ref comments/notes for cross-service logical UUID references; these are NOT SQL FKs across databases.'
+}
+
+// ============================================================
+// 1. AUTH DB — auth-service
+// Source of truth: identity, profile, privacy, block, presence, notes
+// ============================================================
+Table auth_users {
+  id uuid [pk]
+  username varchar(50) [not null, unique]
+  email varchar(255) [not null, unique]
+  password_hash varchar(255) [not null]
+  display_name varchar(100)
+  avatar_url varchar(500)
+  bio text
+  website varchar(500)
+  pronouns varchar(50)
+  category varchar(100)
+  is_private boolean [not null, default: false]
+  totp_secret varchar(255) [note: 'Encrypted AES-GCM; optional when 2FA disabled']
+  two_fa_enabled boolean [not null, default: false]
+  backup_codes_hash text [note: 'Hashed backup codes; shown once during setup']
+  email_verified boolean [not null, default: false]
+  email_verified_at timestamptz
+  show_activity_status boolean [not null, default: true]
+  last_seen_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table auth_user_roles {
+  id uuid [pk]
+  user_id uuid [not null]
+  role varchar(30) [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (user_id, role) [unique]
+    user_id
+  }
+}
+
+Table auth_refresh_tokens {
+  id uuid [pk]
+  user_id uuid [not null]
+  jti varchar(100) [not null, unique]
+  token_hash varchar(255) [not null]
+  expires_at timestamptz [not null]
+  revoked_at timestamptz
+  created_at timestamptz [not null]
+
+  Indexes {
+    user_id
+    expires_at
+    revoked_at
+  }
+}
+
+Table auth_blocks {
+  id uuid [pk]
+  blocker_id uuid [not null]
+  blocked_id uuid [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (blocker_id, blocked_id) [unique]
+    blocker_id
+    blocked_id
+  }
+
+  Note: 'A→B blocks B. Enforce blocker_id <> blocked_id in application/SQL constraint.'
+}
+
+Table auth_notes {
+  id uuid [pk]
+  user_id uuid [not null]
+  content varchar(60) [not null]
+  created_at timestamptz [not null]
+  expires_at timestamptz [not null]
+
+  Indexes {
+    user_id
+    expires_at
+  }
+}
+
+Ref: auth_users.id < auth_user_roles.user_id
+Ref: auth_users.id < auth_refresh_tokens.user_id
+Ref: auth_users.id < auth_blocks.blocker_id
+Ref: auth_users.id < auth_blocks.blocked_id
+Ref: auth_users.id < auth_notes.user_id
+
+TableGroup AUTH_DB {
+  auth_users
+  auth_user_roles
+  auth_refresh_tokens
+  auth_blocks
+  auth_notes
+}
+
+// ============================================================
+// 2. MEDIA DB — media-service
+// Source of truth: uploaded media metadata + object storage identity
+// ============================================================
+Table media_files {
+  id uuid [pk]
+  owner_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id; NOT a cross-DB FK']
+  bucket varchar(100) [not null]
+  object_key varchar(500) [not null, unique]
+  mime_type varchar(150) [not null]
+  size_bytes bigint [not null]
+  url varchar(1000)
+  thumbnail_url varchar(1000)
+  status varchar(30) [not null, note: 'UPLOADING / READY / DELETED / ORPHAN']
+  created_at timestamptz [not null]
+  updated_at timestamptz
+
+  Indexes {
+    owner_id
+    status
+    created_at
+  }
+}
+
+Table media_metadata {
+  media_id uuid [pk]
+  width int
+  height int
+  duration_sec int
+  exif_stripped boolean [not null, default: true]
+  metadata jsonb
+}
+
+Ref: media_files.id - media_metadata.media_id
+
+TableGroup MEDIA_DB {
+  media_files
+  media_metadata
+}
+
+// ============================================================
+// 3. CONTENT DB — content-service
+// Source of truth: posts, comments, interactions, follows, stories
+// ============================================================
+Table content_posts {
+  id uuid [pk]
+  author_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  content_type varchar(20) [not null, note: 'REEL / ARTICLE / IMAGE']
+  caption text
+  media_id uuid [note: 'Recommended normalized logical reference → media_db.media_files.id']
+  media_url varchar(1000) [note: 'Optional resolved/snapshot URL; media_id is the canonical logical media reference when present']
+  tags text
+  like_count bigint [not null, default: 0]
+  comment_count bigint [not null, default: 0]
+  view_count bigint [not null, default: 0]
+  status varchar(20) [not null, note: 'PUBLISHED / ARCHIVED / DRAFT']
+  edited_at timestamptz
+  edit_count int [not null, default: 0]
+  visibility varchar(30) [not null, note: 'PUBLIC / FOLLOWERS_ONLY']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Indexes {
+    author_id
+    status
+    visibility
+    media_id
+    created_at
+  }
+}
+
+Table content_comments {
+  id uuid [pk]
+  post_id uuid [not null]
+  author_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  content text [not null]
+  parent_comment_id uuid [note: 'NULL = root comment; non-NULL = reply. Business rule: max depth 1.']
+  like_count bigint [not null, default: 0]
+  created_at timestamptz [not null]
+  updated_at timestamptz
+
+  Indexes {
+    post_id
+    author_id
+    parent_comment_id
+    created_at
+  }
+
+  Note: 'Self-reference implements Comment → Reply. Parent must belong to the same post; service enforces one reply level.'
+}
+
+Table content_comment_likes {
+  comment_id uuid [not null]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  created_at timestamptz [not null]
+
+  Indexes {
+    (comment_id, user_id) [pk]
+    user_id
+  }
+}
+
+Table content_interactions {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  post_id uuid [not null]
+  type varchar(20) [not null, note: 'LIKE / VIEW / SHARE / COMMENT / SKIP']
+  watch_time_ratio decimal(6,5)
+  explicit_rating decimal(4,2)
+  created_at timestamptz [not null]
+
+  Indexes {
+    (user_id, post_id, type)
+    post_id
+    type
+    created_at
+  }
+}
+
+Table content_follows {
+  id uuid [pk]
+  follower_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  following_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  status varchar(20) [not null, note: 'PENDING / ACCEPTED']
+  created_at timestamptz [not null]
+
+  Indexes {
+    (follower_id, following_id) [unique]
+    follower_id
+    following_id
+    status
+  }
+
+  Note: 'Store A→B and B→A as two independent rows. MUTUAL is derived when both rows are ACCEPTED; never store MUTUAL.'
+}
+
+Table content_user_privacy_view {
+  user_id uuid [pk, note: 'Logical reference → auth_db.auth_users.id']
+  is_private boolean [not null]
+  updated_at timestamptz [not null]
+
+  Note: 'CQRS projection from user.events; not source of truth.'
+}
+
+Table content_saved_posts {
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  post_id uuid [not null]
+  collection_id uuid
+  saved_at timestamptz [not null]
+
+  Indexes {
+    (user_id, post_id) [pk]
+    post_id
+    collection_id
+  }
+}
+
+Table content_collections {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  name varchar(100) [not null]
+  is_private boolean [not null, default: true]
+  cover_post_id uuid
+  created_at timestamptz [not null]
+
+  Indexes {
+    user_id
+  }
+}
+
+Table content_reports {
+  id uuid [pk]
+  reporter_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  target_type varchar(30) [not null, note: 'POST / COMMENT / USER']
+  target_id uuid [not null, note: 'Polymorphic logical reference; no single SQL FK possible']
+  reason varchar(100) [not null]
+  description text
+  status varchar(30) [not null, note: 'PENDING / REVIEWING / RESOLVED / REJECTED']
+  created_at timestamptz [not null]
+  updated_at timestamptz
+
+  Indexes {
+    reporter_id
+    (target_type, target_id)
+    status
+  }
+}
+
+Table content_mutes {
+  id uuid [pk]
+  muter_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  muted_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  created_at timestamptz [not null]
+
+  Indexes {
+    (muter_id, muted_id) [unique]
+    muter_id
+    muted_id
+  }
+}
+
+Table content_stories {
+  id uuid [pk]
+  author_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  media_id uuid [note: 'Logical reference → media_db.media_files.id']
+  media_url varchar(1000) [not null]
+  media_type varchar(30) [not null]
+  caption text
+  created_at timestamptz [not null]
+  expires_at timestamptz [not null]
+  visibility varchar(30) [not null, note: 'PUBLIC / FOLLOWERS_ONLY / CLOSE_FRIENDS']
+
+  Indexes {
+    author_id
+    media_id
+    expires_at
+    visibility
+  }
+}
+
+Table content_story_views {
+  story_id uuid [not null]
+  viewer_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  viewed_at timestamptz [not null]
+
+  Indexes {
+    (story_id, viewer_id) [pk]
+    viewer_id
+  }
+}
+
+Table content_highlights {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  name varchar(100) [not null]
+  cover_story_id uuid
+  created_at timestamptz [not null]
+
+  Indexes {
+    user_id
+    cover_story_id
+  }
+}
+
+Table content_highlight_items {
+  highlight_id uuid [not null]
+  story_id uuid [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (highlight_id, story_id) [pk]
+    story_id
+  }
+}
+
+Table content_hashtags {
+  id uuid [pk]
+  tag varchar(100) [not null, unique]
+  post_count bigint [not null, default: 0]
+  last_used_at timestamptz
+}
+
+Table content_post_hashtags {
+  post_id uuid [not null]
+  hashtag_id uuid [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (post_id, hashtag_id) [pk]
+    hashtag_id
+  }
+}
+
+Table content_close_friends {
+  owner_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  friend_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  created_at timestamptz [not null]
+
+  Indexes {
+    (owner_id, friend_id) [pk]
+    friend_id
+  }
+}
+
+Table content_post_mentions {
+  post_id uuid [not null]
+  mentioned_user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  created_at timestamptz [not null]
+
+  Indexes {
+    (post_id, mentioned_user_id) [pk]
+    mentioned_user_id
+  }
+}
+
+Ref: content_posts.id < content_comments.post_id
+Ref: content_comments.id < content_comments.parent_comment_id
+Ref: content_comments.id < content_comment_likes.comment_id
+Ref: content_posts.id < content_interactions.post_id
+Ref: content_posts.id < content_saved_posts.post_id
+Ref: content_collections.id < content_saved_posts.collection_id
+Ref: content_posts.id < content_collections.cover_post_id
+Ref: content_stories.id < content_story_views.story_id
+Ref: content_highlights.id < content_highlight_items.highlight_id
+Ref: content_stories.id < content_highlight_items.story_id
+Ref: content_stories.id < content_highlights.cover_story_id
+Ref: content_posts.id < content_post_hashtags.post_id
+Ref: content_hashtags.id < content_post_hashtags.hashtag_id
+Ref: content_posts.id < content_post_mentions.post_id
+
+TableGroup CONTENT_DB {
+  content_posts
+  content_comments
+  content_comment_likes
+  content_interactions
+  content_follows
+  content_user_privacy_view
+  content_saved_posts
+  content_collections
+  content_reports
+  content_mutes
+  content_stories
+  content_story_views
+  content_highlights
+  content_highlight_items
+  content_hashtags
+  content_post_hashtags
+  content_close_friends
+  content_post_mentions
+}
+
+// ============================================================
+// 4. CHAT DB — chat-service
+// ============================================================
+Table chat_conversations {
+  id uuid [pk]
+  type varchar(20) [not null, note: 'DIRECT / GROUP']
+  name varchar(150)
+  avatar_url varchar(1000)
+  created_by uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  vanish_mode_enabled boolean [not null, default: false]
+  vanish_mode_set_by uuid [note: 'Logical reference → auth_db.auth_users.id']
+  vanish_mode_set_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz
+
+  Indexes {
+    type
+    created_by
+  }
+}
+
+Table chat_conversation_members {
+  id uuid [pk]
+  conversation_id uuid [not null]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  role varchar(20) [not null, note: 'ADMIN / MEMBER']
+  joined_at timestamptz [not null]
+  left_at timestamptz
+  archived boolean [not null, default: false]
+  muted boolean [not null, default: false]
+  muted_until timestamptz
+
+  Indexes {
+    (conversation_id, user_id)
+    conversation_id
+    user_id
+  }
+
+  Note: 'Business rule from PLAN: only one active membership per conversation/user where left_at IS NULL (partial unique index in SQL migration).'
+}
+
+Table chat_messages {
+  id uuid [pk]
+  conversation_id uuid [not null]
+  sender_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  type varchar(30) [not null, note: 'TEXT / IMAGE / VIDEO / VOICE / FILE / POST_SHARE']
+  content text
+  media_id uuid [note: 'Logical reference → media_db.media_files.id']
+  media_url varchar(1000)
+  media_mime_type varchar(150)
+  media_size_bytes bigint
+  media_duration_sec int
+  thumbnail_url varchar(1000)
+  is_deleted boolean [not null, default: false]
+  deleted_at timestamptz
+  deleted_for_everyone boolean [not null, default: false]
+  reply_to_message_id uuid
+  is_forwarded boolean [not null, default: false]
+  forwarded_from_message_id uuid
+  is_ephemeral boolean [not null, default: false]
+  expires_at timestamptz
+  created_at timestamptz [not null]
+  edited_at timestamptz
+
+  Indexes {
+    conversation_id
+    sender_id
+    media_id
+    reply_to_message_id
+    forwarded_from_message_id
+    expires_at
+    created_at
+  }
+
+  Note: 'POST_SHARE carries the shared content post UUID logically; use payload/target fields if a dedicated post reference is needed later.'
+}
+
+Table chat_message_reactions {
+  id uuid [pk]
+  message_id uuid [not null]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  emoji varchar(20) [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (message_id, user_id) [unique]
+    message_id
+    user_id
+  }
+}
+
+Table chat_conversation_read_status {
+  conversation_id uuid [not null]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  last_read_message_id uuid [not null]
+  updated_at timestamptz [not null]
+
+  Indexes {
+    (conversation_id, user_id) [pk]
+    user_id
+  }
+}
+
+Table chat_message_hidden {
+  message_id uuid [not null]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  hidden_at timestamptz [not null]
+
+  Indexes {
+    (message_id, user_id) [pk]
+    user_id
+  }
+}
+
+Table chat_pinned_messages {
+  conversation_id uuid [not null]
+  message_id uuid [not null]
+  pinned_by uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  pinned_at timestamptz [not null]
+
+  Indexes {
+    (conversation_id, message_id) [pk]
+    message_id
+  }
+}
+
+Table chat_call_history {
+  id uuid [pk]
+  conversation_id uuid [not null]
+  initiated_by uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  status varchar(20) [not null, note: 'COMPLETED / MISSED / REJECTED']
+  started_at timestamptz
+  ended_at timestamptz
+
+  Indexes {
+    conversation_id
+    initiated_by
+    status
+    started_at
+  }
+}
+
+Ref: chat_conversations.id < chat_conversation_members.conversation_id
+Ref: chat_conversations.id < chat_messages.conversation_id
+Ref: chat_messages.id < chat_message_reactions.message_id
+Ref: chat_conversations.id < chat_conversation_read_status.conversation_id
+Ref: chat_messages.id < chat_conversation_read_status.last_read_message_id
+Ref: chat_messages.id < chat_message_hidden.message_id
+Ref: chat_conversations.id < chat_pinned_messages.conversation_id
+Ref: chat_messages.id < chat_pinned_messages.message_id
+Ref: chat_conversations.id < chat_call_history.conversation_id
+Ref: chat_messages.id < chat_messages.reply_to_message_id
+Ref: chat_messages.id < chat_messages.forwarded_from_message_id
+
+TableGroup CHAT_DB {
+  chat_conversations
+  chat_conversation_members
+  chat_messages
+  chat_message_reactions
+  chat_conversation_read_status
+  chat_message_hidden
+  chat_pinned_messages
+  chat_call_history
+}
+
+// ============================================================
+// 5. BOT DB — chatbot-service
+// ============================================================
+// PLAN only states that the original chatbot 3 tasks remain unchanged.
+// It does not define the bot DB entity schema, so no production table is invented here.
+Table bot_schema_todo {
+  id uuid [pk]
+  note text [not null, note: 'Placeholder only. Replace after the original chatbot-service schema is supplied/confirmed.']
+}
+
+TableGroup BOT_DB {
+  bot_schema_todo
+}
+
+// ============================================================
+// 6. RECOMMENDER DB — recommender-service (CQRS read model)
+// ============================================================
+Table recommender_post_view {
+  post_id uuid [pk, note: 'Logical reference → content_db.content_posts.id']
+  author_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  content_type varchar(20) [not null]
+  caption text
+  tags text
+  visibility varchar(30) [not null]
+  author_is_private boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz
+
+  Indexes {
+    author_id
+    visibility
+    created_at
+  }
+}
+
+Table recommender_interaction_view {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  post_id uuid [not null, note: 'Logical reference → content_db.content_posts.id']
+  type varchar(20) [not null]
+  watch_time_ratio decimal(6,5)
+  explicit_rating decimal(4,2)
+  created_at timestamptz [not null]
+
+  Indexes {
+    (user_id, created_at)
+    post_id
+    type
+  }
+}
+
+Table recommender_follow_view {
+  follower_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  following_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  status varchar(20) [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (follower_id, following_id) [pk]
+    following_id
+    status
+  }
+
+  Note: 'Projection of content_follows. Mutual is derived, not stored.'
+}
+
+Table recommender_block_view {
+  blocker_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  blocked_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  updated_at timestamptz [not null]
+
+  Indexes {
+    (blocker_id, blocked_id) [pk]
+    blocked_id
+  }
+}
+
+Table recommender_mute_view {
+  muter_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  muted_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  updated_at timestamptz [not null]
+
+  Indexes {
+    (muter_id, muted_id) [pk]
+    muted_id
+  }
+}
+
+TableGroup RECOMMENDER_DB {
+  recommender_post_view
+  recommender_interaction_view
+  recommender_follow_view
+  recommender_block_view
+  recommender_mute_view
+}
+
+// ============================================================
+// 7. NOTIFICATION DB — notification-service
+// ============================================================
+Table notification_notifications {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  type varchar(50) [not null]
+  actor_id uuid [note: 'Logical reference → auth_db.auth_users.id']
+  target_type varchar(50)
+  target_id uuid [note: 'Logical reference depending on target_type']
+  payload jsonb
+  is_read boolean [not null, default: false]
+  created_at timestamptz [not null]
+
+  Indexes {
+    user_id
+    (user_id, is_read)
+    created_at
+  }
+}
+
+Table notification_device_tokens {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  token varchar(500) [not null, unique]
+  platform varchar(20) [not null, note: 'ANDROID / IOS / WEB']
+  last_seen_at timestamptz
+  created_at timestamptz [not null]
+
+  Indexes {
+    user_id
+  }
+}
+
+TableGroup NOTIFICATION_DB {
+  notification_notifications
+  notification_device_tokens
+}
+
+// ============================================================
+// CROSS-SERVICE LOGICAL RELATIONSHIPS
+// These Ref lines exist ONLY to make dbdiagram visually show
+// architecture. They MUST NOT be copied into Flyway as SQL FKs.
+// ============================================================
+
+// AUTH → CONTENT
+Ref: auth_users.id < content_posts.author_id
+Ref: auth_users.id < content_comments.author_id
+Ref: auth_users.id < content_comment_likes.user_id
+Ref: auth_users.id < content_interactions.user_id
+Ref: auth_users.id < content_follows.follower_id
+Ref: auth_users.id < content_follows.following_id
+Ref: auth_users.id < content_user_privacy_view.user_id
+Ref: auth_users.id < content_saved_posts.user_id
+Ref: auth_users.id < content_collections.user_id
+Ref: auth_users.id < content_reports.reporter_id
+Ref: auth_users.id < content_mutes.muter_id
+Ref: auth_users.id < content_mutes.muted_id
+Ref: auth_users.id < content_stories.author_id
+Ref: auth_users.id < content_story_views.viewer_id
+Ref: auth_users.id < content_highlights.user_id
+Ref: auth_users.id < content_close_friends.owner_id
+Ref: auth_users.id < content_close_friends.friend_id
+Ref: auth_users.id < content_post_mentions.mentioned_user_id
+
+// MEDIA → CONTENT
+Ref: media_files.id < content_posts.media_id
+Ref: media_files.id < content_stories.media_id
+
+// AUTH → CHAT
+Ref: auth_users.id < chat_conversations.created_by
+Ref: auth_users.id < chat_conversations.vanish_mode_set_by
+Ref: auth_users.id < chat_conversation_members.user_id
+Ref: auth_users.id < chat_messages.sender_id
+Ref: auth_users.id < chat_message_reactions.user_id
+Ref: auth_users.id < chat_conversation_read_status.user_id
+Ref: auth_users.id < chat_message_hidden.user_id
+Ref: auth_users.id < chat_pinned_messages.pinned_by
+Ref: auth_users.id < chat_call_history.initiated_by
+
+// MEDIA → CHAT
+Ref: media_files.id < chat_messages.media_id
+
+// AUTH → RECOMMENDER
+Ref: auth_users.id < recommender_post_view.author_id
+Ref: auth_users.id < recommender_interaction_view.user_id
+Ref: auth_users.id < recommender_follow_view.follower_id
+Ref: auth_users.id < recommender_follow_view.following_id
+Ref: auth_users.id < recommender_block_view.blocker_id
+Ref: auth_users.id < recommender_block_view.blocked_id
+Ref: auth_users.id < recommender_mute_view.muter_id
+Ref: auth_users.id < recommender_mute_view.muted_id
+
+// CONTENT → RECOMMENDER
+Ref: content_posts.id < recommender_post_view.post_id
+Ref: content_posts.id < recommender_interaction_view.post_id
+
+// AUTH → NOTIFICATION
+Ref: auth_users.id < notification_notifications.user_id
+Ref: auth_users.id < notification_notifications.actor_id
+Ref: auth_users.id < notification_device_tokens.user_id
+
+// CONTENT / CHAT → NOTIFICATION (polymorphic target IDs are represented by fields, not direct FK)
+// notification_notifications.target_id → content_posts.id / content_comments.id / chat_messages.id / etc.
+
+// BOT → CHAT / AUTH
+// PLAN does not define bot DB schema, so relationships are intentionally not modeled yet.
+
+// ============================================================
+// ARCHITECTURE NOTES
+// ============================================================
+// 1. Inside one DB: use actual PostgreSQL FK and referential integrity.
+// 2. Across DBs: only UUID reference + REST/Kafka/event synchronization.
+// 3. Follow A→B + B→A are two rows. MUTUAL is computed.
+// 4. Comment reply is self-reference with max depth = 1.
+// 5. Block lives in auth_db; mute lives in content_db; downstream filters use events/projections.
+// 6. Recommender is CQRS read-model and does not own content posts.
+// 7. bot_db remains intentionally unspecified until the original chatbot schema is confirmed.
+// 8. Before Flyway, convert only same-DB Ref lines into SQL FK constraints; keep cross-service refs as plain UUID columns.

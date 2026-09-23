@@ -1,0 +1,7 @@
+docker compose -f .\infra\docker-compose.yml config
+
+docker compose -f .\infra\docker-compose.yml up -d
+
+docker compose -f .\infra\docker-compose.yml ps
+
+mvn spring-boot:run "-Dspring-boot.run.jvmArguments=-Duser.timezone=UTC"

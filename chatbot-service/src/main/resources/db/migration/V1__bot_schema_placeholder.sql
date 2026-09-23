@@ -1,0 +1,3 @@
+-- Intentionally empty placeholder.
+-- The source PLAN defines chatbot behavior but does not provide its database entity/schema.
+-- Do not invent production tables until the original chatbot schema is explicitly confirmed.
