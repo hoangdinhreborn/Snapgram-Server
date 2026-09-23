@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     ports:
       - "9092:9092"
+      - "9094:9094"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -218,35 +219,6 @@ services:
       retries: 8
       start_period: 60s
 
-  chat-service:
-    build:
-      context: ..
-      dockerfile: chat-service/Dockerfile
-    image: snapgram/chat-service:latest
-    container_name: snapgram-chat-service
-    restart: unless-stopped
-    ports:
-      - "8082:8082"
-    env_file:
-      - ../.env
-    environment:
-      DB_URL: jdbc:postgresql://postgres-chat:5432/snapgram
-      REDIS_HOST: redis
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on:
-      postgres-chat:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
-      interval: 15s
-      timeout: 10s
-      retries: 8
-      start_period: 60s
-
   chatbot-service:
     build:
       context: ..
@@ -255,7 +227,7 @@ services:
     container_name: snapgram-chatbot-service
     restart: unless-stopped
     ports:
-      - "8083:8083"
+      - "8082:8082"
     env_file:
       - ../.env
     environment:
@@ -270,7 +242,36 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 60s
+
+  chat-service:
+    build:
+      context: ..
+      dockerfile: chat-service/Dockerfile
+    image: snapgram/chat-service:latest
+    container_name: snapgram-chat-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    env_file:
+      - ../.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres-chat:5432/snapgram
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres-chat:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q -O- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'" ]
       interval: 15s
       timeout: 10s
       retries: 8
@@ -381,7 +382,7 @@ services:
     container_name: snapgram-recommender-service
     restart: unless-stopped
     ports:
-      - "8087:8087"
+      - "8090:8090"
     env_file:
       - ../.env
     environment:
@@ -396,7 +397,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8087/actuator/health | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8090/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s
       timeout: 10s
       retries: 8
@@ -414,11 +415,17 @@ services:
     env_file:
       - ../.env
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       REDIS_HOST: redis
+      AUTH_SERVICE_URL: http://auth-service:8081
+      CONTENT_SERVICE_URL: http://content-service:8084
+      CHAT_SERVICE_URL: http://chat-service:8083
+      CHAT_WS_URL: ws://chat-service:8083
+      NOTIFICATION_SERVICE_URL: http://notification-service:8086
+      NOTIFICATION_WS_URL: ws://notification-service:8086
+      CHATBOT_SERVICE_URL: http://chatbot-service:8082
+      RECOMMENDER_SERVICE_URL: http://recommender-service:8090
+      MEDIA_SERVICE_URL: http://media-service:8085
     depends_on:
-      kafka:
-        condition: service_healthy
       redis:
         condition: service_healthy
       auth-service:

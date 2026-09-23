@@ -4,23 +4,109 @@ server:
 spring:
   application:
     name: api-gateway
+
   threads:
     virtual:
       enabled: true
+
   lifecycle:
     timeout-per-shutdown-phase: 20s
+
   cloud:
     gateway:
       server:
         webflux:
-          routes: []
+          routes:
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**
+
+            - id: content-service
+              uri: ${CONTENT_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/content/**
+
+            - id: social-service
+              uri: ${CONTENT_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/social/**
+
+            - id: chat-service
+              uri: ${CHAT_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/conv/**
+
+            # WebSocket: dùng ws:// scheme, cùng port với HTTP (8083)
+            # Path /ws/chat/** để không conflict với /ws/notifications/**
+            - id: chat-websocket
+              uri: ${CHAT_WS_URL:ws://localhost:8083}
+              predicates:
+                - Path=/ws/chat/**
+
+            - id: chatbot-service
+              uri: ${CHATBOT_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/bot/**
+
+            - id: recommender-service
+              uri: ${RECOMMENDER_SERVICE_URL:http://localhost:8090}
+              predicates:
+                - Path=/api/feed/**
+
+            - id: media-service
+              uri: ${MEDIA_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/media/**
+
+            - id: notification-service
+              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+              predicates:
+                - Path=/api/notifications/**
+
+            # WebSocket: dùng ws:// scheme, cùng port với HTTP (8086)
+            - id: notification-websocket
+              uri: ${NOTIFICATION_WS_URL:ws://localhost:8086}
+              predicates:
+                - Path=/ws/notifications/**
+
+          metrics:
+            enabled: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+app:
+  auth-service:
+    url: ${AUTH_SERVICE_URL:http://localhost:8081}
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:5173
+      - http://127.0.0.1:3000
+      - http://127.0.0.1:5173
+      - https://snapgram.local
+  rate-limit:
+    capacity: 100
+    refill-duration-seconds: 60
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics,prometheus
+
   endpoint:
     health:
       probes:
         enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.example.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
