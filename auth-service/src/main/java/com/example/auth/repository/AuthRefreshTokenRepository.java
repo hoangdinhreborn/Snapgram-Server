@@ -16,5 +16,10 @@ public interface AuthRefreshTokenRepository
 
     List<AuthRefreshToken> findAllByUserIdAndRevokedAtIsNull(UUID userId);
 
+    /** Alias used by UserService to revoke all sessions on password change. */
+    default List<AuthRefreshToken> findActiveByUserId(UUID userId) {
+        return findAllByUserIdAndRevokedAtIsNull(userId);
+    }
+
     void deleteAllByUserId(UUID userId);
 }

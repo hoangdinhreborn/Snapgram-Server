@@ -5,6 +5,7 @@ import com.example.auth.security.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -17,6 +18,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
 @EnableConfigurationProperties(JwtProperties.class)
+@EnableScheduling
 public class SecurityConfig {
 
     @Bean
@@ -42,8 +44,14 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login",
+                                "/api/auth/login/2fa",
                                 "/api/auth/refresh",
-                                "/actuator/health"
+                                "/api/users/search",
+                                "/actuator/health",
+                                // Swagger UI
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
                         ).permitAll()
                         // Admin-only endpoints
                         .requestMatchers("/api/auth/admin/**").hasRole("ADMIN")

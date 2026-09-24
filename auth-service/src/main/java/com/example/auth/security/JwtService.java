@@ -18,9 +18,10 @@ import java.util.UUID;
 public class JwtService {
 
     private static final String TOKEN_TYPE_CLAIM = "token_type";
-    private static final String ACCESS_TOKEN = "access";
+    private static final String ACCESS_TOKEN  = "access";
     private static final String REFRESH_TOKEN = "refresh";
-    private static final String ROLES_CLAIM = "roles";
+    private static final String TEMP_TOKEN    = "temp";
+    private static final String ROLES_CLAIM   = "roles";
 
     private final JwtProperties properties;
     private final SecretKey signingKey;
@@ -67,8 +68,34 @@ public class JwtService {
                 .compact();
     }
 
-    public Claims parseToken(String token) {
-        return Jwts.parser()
+    /**
+     * Short-lived (5 min) token issued after password verification when 2FA is enabled.
+     * Client must exchange this with a valid TOTP/backup code to get real tokens.
+     */
+    public String generateTempToken(AuthUser user) {
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(java.time.Duration.ofMinutes(5));
+        return Jwts.builder()
+                .id(UUID.randomUUID().toString())
+                .subject(user.getId().toString())
+                .issuer(properties.issuer())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiresAt))
+                .claim(TOKEN_TYPE_CLAIM, TEMP_TOKEN)
+                .signWith(signingKey)
+                .compact();
+    }
+
+    public boolean isTempToken(String token) {
+        try {
+            Claims claims = parseToken(token);
+            return TEMP_TOKEN.equals(claims.get(TOKEN_TYPE_CLAIM, String.class));
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    public Claims parseToken(String token) {        return Jwts.parser()
                 .verifyWith(signingKey)
                 .requireIssuer(properties.issuer())
                 .build()

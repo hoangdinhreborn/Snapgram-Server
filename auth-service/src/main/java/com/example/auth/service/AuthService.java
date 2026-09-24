@@ -8,9 +8,11 @@ import com.example.auth.entity.AuthRefreshToken;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.exception.DuplicateUserException;
 import com.example.auth.exception.InvalidCredentialsException;
+import com.example.auth.exception.TwoFaException;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
 import com.example.auth.security.JwtService;
+import com.example.auth.dto.TwoFaLoginRequest;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +36,7 @@ public class AuthService {
     private final RoleService roleService;
     private final PasswordEncoder passwordEncoder;
     private final TokenBlacklistService tokenBlacklistService;
+    private final TwoFaService twoFaService;
 
     /**
      * Register new user with USER role
@@ -41,17 +44,6 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         log.info("Registering user: {}", request.getUsername());
-
-        // Validate input
-        if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
-            throw new IllegalArgumentException("Username is required");
-        }
-        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-            throw new IllegalArgumentException("Email is required");
-        }
-        if (request.getPassword() == null || request.getPassword().length() < 8) {
-            throw new IllegalArgumentException("Password must be at least 8 characters");
-        }
 
         // Check for duplicates
         if (userRepository.existsByUsername(request.getUsername())) {
@@ -88,14 +80,6 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         log.info("Login attempt: {}", request.getEmail());
 
-        // Validate input
-        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-            throw new IllegalArgumentException("Email is required");
-        }
-        if (request.getPassword() == null || request.getPassword().isEmpty()) {
-            throw new IllegalArgumentException("Password is required");
-        }
-
         // Find user
         AuthUser user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> {
@@ -111,6 +95,16 @@ public class AuthService {
 
         log.info("User logged in: {}", user.getUsername());
 
+        // If 2FA is enabled → return a short-lived temp token, not full tokens
+        if (user.isTwoFaEnabled()) {
+            String tempToken = jwtService.generateTempToken(user);
+            log.info("2FA required for user {}", user.getUsername());
+            return AuthResponse.builder()
+                    .requiresTwoFa(true)
+                    .tempToken(tempToken)
+                    .build();
+        }
+
         // Generate tokens
         return generateTokens(user);
     }
@@ -121,10 +115,6 @@ public class AuthService {
     @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         log.info("Refreshing token");
-
-        if (request.getRefreshToken() == null || request.getRefreshToken().isEmpty()) {
-            throw new IllegalArgumentException("Refresh token is required");
-        }
 
         try {
             // Validate refresh token
@@ -248,6 +238,45 @@ public class AuthService {
         } catch (JwtException | IllegalArgumentException e) {
             throw new InvalidCredentialsException("Invalid token");
         }
+    }
+
+    /**
+     * Complete login after 2FA verification.
+     */
+    @Transactional
+    public AuthResponse loginWith2Fa(TwoFaLoginRequest request) {
+        if (request.getTotpCode() == null && request.getBackupCode() == null) {
+            throw new TwoFaException("Either totpCode or backupCode is required");
+        }
+
+        // Validate temp token
+        if (!jwtService.isTempToken(request.getTempToken())) {
+            throw new InvalidCredentialsException("Invalid or expired temp token");
+        }
+
+        UUID userId;
+        try {
+            userId = jwtService.getUserId(request.getTempToken());
+        } catch (Exception e) {
+            throw new InvalidCredentialsException("Invalid temp token");
+        }
+
+        AuthUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+
+        boolean verified = false;
+        if (request.getTotpCode() != null && !request.getTotpCode().isBlank()) {
+            verified = twoFaService.verifyForLogin(user, request.getTotpCode());
+        } else if (request.getBackupCode() != null && !request.getBackupCode().isBlank()) {
+            verified = twoFaService.verifyBackupCodeForLogin(user, request.getBackupCode());
+        }
+
+        if (!verified) {
+            throw new TwoFaException("Invalid TOTP code or backup code");
+        }
+
+        log.info("2FA verified, issuing tokens for user {}", user.getUsername());
+        return generateTokens(user);
     }
 
     /**
