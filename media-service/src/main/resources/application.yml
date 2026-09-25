@@ -1,6 +1,14 @@
 server:
   port: 8085
 
+app:
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ROOT_USER:snapgram}
+    secret-key: ${MINIO_ROOT_PASSWORD:snapgram-minio-dev-password}
+    bucket: ${MINIO_BUCKET:snapgram-media}
+    public-url: ${MINIO_PUBLIC_URL:http://localhost:9000/snapgram-media}
+
 spring:
   application:
     name: media-service
@@ -11,10 +19,17 @@ spring:
     timeout-per-shutdown-phase: 20s
   jackson:
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5437/snapgram}
     username: ${DB_USER:snapgram}
     password: ${DB_PASSWORD:snapgram}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -33,3 +48,11 @@ management:
     health:
       probes:
         enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs

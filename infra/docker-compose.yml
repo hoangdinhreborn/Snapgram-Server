@@ -292,7 +292,7 @@ services:
       DB_URL: jdbc:postgresql://postgres-content:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      MINIO_ENDPOINT: minio:9000
+      MINIO_ENDPOINT: http://minio:9000
     depends_on:
       postgres-content:
         condition: service_healthy
@@ -324,7 +324,7 @@ services:
       DB_URL: jdbc:postgresql://postgres-media:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      MINIO_ENDPOINT: minio:9000
+      MINIO_ENDPOINT: http://minio:9000
     depends_on:
       postgres-media:
         condition: service_healthy

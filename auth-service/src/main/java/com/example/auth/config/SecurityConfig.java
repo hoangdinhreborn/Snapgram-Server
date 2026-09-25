@@ -46,6 +46,9 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/login/2fa",
                                 "/api/auth/refresh",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+                                "/api/auth/verify-email",
                                 "/api/users/search",
                                 "/actuator/health",
                                 // Swagger UI

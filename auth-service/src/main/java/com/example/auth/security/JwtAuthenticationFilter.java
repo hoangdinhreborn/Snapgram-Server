@@ -6,6 +6,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -37,9 +38,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authorization = request.getHeader("Authorization");
 
-        if (authorization == null ||
-                !authorization.startsWith("Bearer ")) {
-
+        // No token → let Spring Security decide (public routes pass, protected routes → 401)
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -47,58 +47,56 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authorization.substring(7);
 
         try {
+            // Reject non-access tokens (refresh / temp tokens) early
             if (!jwtService.isAccessToken(token)) {
-                filterChain.doFilter(request, response);
+                rejectUnauthorized(response, "Invalid token type");
                 return;
             }
 
             // Reject blacklisted tokens (user has logged out)
             String jti = jwtService.getJti(token);
             if (tokenBlacklistService.isBlacklisted(jti)) {
-                filterChain.doFilter(request, response);
+                rejectUnauthorized(response, "Token has been revoked");
                 return;
             }
 
             UUID userId = jwtService.getUserId(token);
 
-            if (SecurityContextHolder.getContext()
-                    .getAuthentication() != null) {
-
+            // Skip if already authenticated (e.g. nested filters)
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
                 filterChain.doFilter(request, response);
                 return;
             }
 
-            List<SimpleGrantedAuthority> authorities =
-                    jwtService.getRoles(token)
-                            .stream()
-                            .map(role -> {
-                                String authority = role.startsWith("ROLE_")
-                                        ? role
-                                        : "ROLE_" + role;
-
-                                return new SimpleGrantedAuthority(authority);
-                            })
-                            .toList();
+            List<SimpleGrantedAuthority> authorities = jwtService.getRoles(token)
+                    .stream()
+                    .map(role -> new SimpleGrantedAuthority(
+                            role.startsWith("ROLE_") ? role : "ROLE_" + role))
+                    .toList();
 
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userId,
-                            null,
-                            authorities
-                    );
+                    new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
             authentication.setDetails(
-                    new WebAuthenticationDetailsSource()
-                            .buildDetails(request)
-            );
+                    new WebAuthenticationDetailsSource().buildDetails(request));
 
-            SecurityContextHolder.getContext()
-                    .setAuthentication(authentication);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
 
         } catch (JwtException | IllegalArgumentException ex) {
             SecurityContextHolder.clearContext();
+            rejectUnauthorized(response, "Invalid or expired token");
+            return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /** Write a compact 401 JSON response without going through @ControllerAdvice. */
+    private void rejectUnauthorized(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write("""
+                {"status":401,"error":"Unauthorized","message":"%s"}
+                """.formatted(message));
     }
 }

@@ -95,7 +95,8 @@ public class JwtService {
         }
     }
 
-    public Claims parseToken(String token) {        return Jwts.parser()
+    public Claims parseToken(String token) {
+        return Jwts.parser()
                 .verifyWith(signingKey)
                 .requireIssuer(properties.issuer())
                 .build()

@@ -86,11 +86,49 @@ Table auth_notes {
   }
 }
 
+Table auth_email_verifications {
+  id uuid [pk]
+  user_id uuid [not null]
+  token_hash varchar(255) [not null, unique, note: 'SHA-256 hash of the raw token sent via email']
+  new_email varchar(255) [note: 'NULL = verify current email; non-NULL = pending email change']
+  expires_at timestamptz [not null]
+  used_at timestamptz [note: 'NULL = not yet used; set on successful verification']
+  created_at timestamptz [not null]
+
+  Indexes {
+    user_id
+    token_hash
+    expires_at
+  }
+
+  Note: 'One active token per user at a time (used_at IS NULL AND expires_at > now). Application enforces uniqueness; old tokens are invalidated on new request.'
+}
+
+Table auth_password_resets {
+  id uuid [pk]
+  user_id uuid [not null]
+  token_hash varchar(255) [not null, unique, note: 'SHA-256 hash of the raw reset token sent via email']
+  expires_at timestamptz [not null]
+  used_at timestamptz [note: 'NULL = not yet used; set on successful password reset']
+  ip_address varchar(45) [note: 'IPv4 or IPv6 of requester for audit/abuse detection']
+  created_at timestamptz [not null]
+
+  Indexes {
+    user_id
+    token_hash
+    expires_at
+  }
+
+  Note: 'Token is single-use (used_at set on first use). Expires in 15 minutes. Multiple active tokens allowed per user but only latest is shown — old ones are invalidated on new request.'
+}
+
 Ref: auth_users.id < auth_user_roles.user_id
 Ref: auth_users.id < auth_refresh_tokens.user_id
 Ref: auth_users.id < auth_blocks.blocker_id
 Ref: auth_users.id < auth_blocks.blocked_id
 Ref: auth_users.id < auth_notes.user_id
+Ref: auth_users.id < auth_email_verifications.user_id
+Ref: auth_users.id < auth_password_resets.user_id
 
 TableGroup AUTH_DB {
   auth_users
@@ -98,6 +136,8 @@ TableGroup AUTH_DB {
   auth_refresh_tokens
   auth_blocks
   auth_notes
+  auth_email_verifications
+  auth_password_resets
 }
 
 // ============================================================
@@ -811,3 +851,5 @@ Ref: auth_users.id < notification_device_tokens.user_id
 // 6. Recommender is CQRS read-model and does not own content posts.
 // 7. bot_db remains intentionally unspecified until the original chatbot schema is confirmed.
 // 8. Before Flyway, convert only same-DB Ref lines into SQL FK constraints; keep cross-service refs as plain UUID columns.
+// 9. auth_email_verifications: token is SHA-256 hashed before storage; raw token sent via email only once; 24h TTL.
+// 10. auth_password_resets: token is SHA-256 hashed before storage; raw token sent via email only once; 15min TTL; single-use (used_at).

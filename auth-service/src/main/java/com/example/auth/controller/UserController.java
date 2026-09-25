@@ -1,6 +1,8 @@
 package com.example.auth.controller;
 
 import com.example.auth.dto.*;
+import com.example.auth.security.SecurityUtils;
+import com.example.auth.service.EmailVerificationService;
 import com.example.auth.service.TwoFaService;
 import com.example.auth.service.UserService;
 import jakarta.validation.Valid;
@@ -11,7 +13,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,47 +26,33 @@ public class UserController {
 
     private final UserService userService;
     private final TwoFaService twoFaService;
+    private final EmailVerificationService emailVerificationService;
 
     // ─────────────────────────────────────────────────────────────
     // Profile
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * GET /api/users/me
-     * Returns the authenticated user's full profile.
-     */
+    /** GET /api/users/me */
     @GetMapping("/me")
-    public ResponseEntity<UserProfileResponse> getMyProfile(
-            @AuthenticationPrincipal UUID userId) {
-        return ResponseEntity.ok(userService.getMyProfile(userId));
+    public ResponseEntity<UserProfileResponse> getMyProfile() {
+        return ResponseEntity.ok(userService.getMyProfile(currentUserId()));
     }
 
-    /**
-     * PATCH /api/users/me
-     * Update own profile fields (only non-null fields are applied).
-     */
+    /** PATCH /api/users/me */
     @PatchMapping("/me")
     public ResponseEntity<UserProfileResponse> updateProfile(
-            @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody UpdateProfileRequest request) {
-        return ResponseEntity.ok(userService.updateProfile(userId, request));
+        return ResponseEntity.ok(userService.updateProfile(currentUserId(), request));
     }
 
-    /**
-     * GET /api/users/{username}
-     * View another user's public profile (privacy rules applied).
-     */
+    /** GET /api/users/{username} */
     @GetMapping("/{username}")
     public ResponseEntity<UserProfileResponse> getPublicProfile(
-            @AuthenticationPrincipal UUID viewerId,
             @PathVariable String username) {
-        return ResponseEntity.ok(userService.getPublicProfile(viewerId, username));
+        return ResponseEntity.ok(userService.getPublicProfile(currentUserId(), username));
     }
 
-    /**
-     * GET /api/users/search?q=foo&page=0&size=20
-     * Search users by username or displayName.
-     */
+    /** GET /api/users/search?q=foo&page=0&size=20 */
     @GetMapping("/search")
     public ResponseEntity<Page<UserProfileResponse>> searchUsers(
             @RequestParam
@@ -74,7 +61,7 @@ public class UserController {
             String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        size = Math.min(size, 50); // cap at 50
+        size = Math.min(size, 50);
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(userService.searchUsers(q, pageable));
     }
@@ -83,30 +70,22 @@ public class UserController {
     // Privacy
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * PUT /api/users/me/privacy
-     * Toggle private/public account.
-     */
+    /** PUT /api/users/me/privacy */
     @PutMapping("/me/privacy")
     public ResponseEntity<UserProfileResponse> updatePrivacy(
-            @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody PrivacySettingRequest request) {
-        return ResponseEntity.ok(userService.updatePrivacy(userId, request));
+        return ResponseEntity.ok(userService.updatePrivacy(currentUserId(), request));
     }
 
     // ─────────────────────────────────────────────────────────────
     // Password
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * PUT /api/users/me/password
-     * Change password — verifies current password, revokes all sessions.
-     */
+    /** PUT /api/users/me/password */
     @PutMapping("/me/password")
     public ResponseEntity<Void> changePassword(
-            @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody ChangePasswordRequest request) {
-        userService.changePassword(userId, request);
+        userService.changePassword(currentUserId(), request);
         return ResponseEntity.noContent().build();
     }
 
@@ -114,36 +93,24 @@ public class UserController {
     // Two-Factor Authentication
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * POST /api/users/me/2fa/setup
-     * Generate TOTP secret + QR code. Does NOT enable 2FA yet.
-     */
+    /** POST /api/users/me/2fa/setup */
     @PostMapping("/me/2fa/setup")
-    public ResponseEntity<TwoFaSetupResponse> setup2Fa(
-            @AuthenticationPrincipal UUID userId) {
-        return ResponseEntity.ok(twoFaService.setup(userId));
+    public ResponseEntity<TwoFaSetupResponse> setup2Fa() {
+        return ResponseEntity.ok(twoFaService.setup(currentUserId()));
     }
 
-    /**
-     * POST /api/users/me/2fa/enable
-     * Confirm TOTP code → enable 2FA + receive backup codes.
-     */
+    /** POST /api/users/me/2fa/enable */
     @PostMapping("/me/2fa/enable")
     public ResponseEntity<TwoFaEnableResponse> enable2Fa(
-            @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody TwoFaEnableRequest request) {
-        return ResponseEntity.ok(twoFaService.enable(userId, request));
+        return ResponseEntity.ok(twoFaService.enable(currentUserId(), request));
     }
 
-    /**
-     * DELETE /api/users/me/2fa/disable
-     * Disable 2FA — requires valid TOTP or backup code.
-     */
+    /** DELETE /api/users/me/2fa/disable */
     @DeleteMapping("/me/2fa/disable")
     public ResponseEntity<Void> disable2Fa(
-            @AuthenticationPrincipal UUID userId,
             @RequestBody TwoFaDisableRequest request) {
-        twoFaService.disable(userId, request);
+        twoFaService.disable(currentUserId(), request);
         return ResponseEntity.noContent().build();
     }
 
@@ -151,25 +118,17 @@ public class UserController {
     // Activity Status
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * PUT /api/users/me/activity-status
-     * Toggle whether last-seen is visible to others.
-     */
+    /** PUT /api/users/me/activity-status */
     @PutMapping("/me/activity-status")
     public ResponseEntity<UserProfileResponse> updateActivityStatus(
-            @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody ActivityStatusRequest request) {
-        return ResponseEntity.ok(userService.updateActivityStatus(userId, request));
+        return ResponseEntity.ok(userService.updateActivityStatus(currentUserId(), request));
     }
 
-    /**
-     * POST /api/users/me/heartbeat
-     * Update last_seen_at to now (called periodically by client).
-     */
+    /** POST /api/users/me/heartbeat */
     @PostMapping("/me/heartbeat")
-    public ResponseEntity<Void> heartbeat(
-            @AuthenticationPrincipal UUID userId) {
-        userService.heartbeat(userId);
+    public ResponseEntity<Void> heartbeat() {
+        userService.heartbeat(currentUserId());
         return ResponseEntity.noContent().build();
     }
 
@@ -177,75 +136,87 @@ public class UserController {
     // Block / Unblock
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * POST /api/users/{userId}/block
-     */
+    /** POST /api/users/{targetId}/block */
     @PostMapping("/{targetId}/block")
-    public ResponseEntity<Void> blockUser(
-            @AuthenticationPrincipal UUID blockerId,
-            @PathVariable UUID targetId) {
-        userService.blockUser(blockerId, targetId);
+    public ResponseEntity<Void> blockUser(@PathVariable UUID targetId) {
+        userService.blockUser(currentUserId(), targetId);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * DELETE /api/users/{userId}/block
-     */
+    /** DELETE /api/users/{targetId}/block */
     @DeleteMapping("/{targetId}/block")
-    public ResponseEntity<Void> unblockUser(
-            @AuthenticationPrincipal UUID blockerId,
-            @PathVariable UUID targetId) {
-        userService.unblockUser(blockerId, targetId);
+    public ResponseEntity<Void> unblockUser(@PathVariable UUID targetId) {
+        userService.unblockUser(currentUserId(), targetId);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * GET /api/users/me/blocks?page=0&size=20
-     */
+    /** GET /api/users/me/blocks?page=0&size=20 */
     @GetMapping("/me/blocks")
     public ResponseEntity<Page<BlockedUserResponse>> getBlockedUsers(
-            @AuthenticationPrincipal UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         size = Math.min(size, 50);
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(userService.getBlockedUsers(userId, pageable));
+        return ResponseEntity.ok(userService.getBlockedUsers(currentUserId(), pageable));
     }
 
     // ─────────────────────────────────────────────────────────────
     // Note
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * POST /api/users/me/note
-     * Create or replace the active note (max 60 chars, TTL 24h).
-     */
+    /** POST /api/users/me/note */
     @PostMapping("/me/note")
     public ResponseEntity<NoteResponse> upsertNote(
-            @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody NoteRequest request) {
-        return ResponseEntity.ok(userService.upsertNote(userId, request));
+        return ResponseEntity.ok(userService.upsertNote(currentUserId(), request));
     }
 
-    /**
-     * DELETE /api/users/me/note
-     */
+    /** DELETE /api/users/me/note */
     @DeleteMapping("/me/note")
-    public ResponseEntity<Void> deleteNote(
-            @AuthenticationPrincipal UUID userId) {
-        userService.deleteNote(userId);
+    public ResponseEntity<Void> deleteNote() {
+        userService.deleteNote(currentUserId());
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * GET /api/users/{userId}/note
-     * Get the active note of any user (null → 204 if expired / no note).
-     */
+    /** GET /api/users/{userId}/note */
     @GetMapping("/{userId}/note")
     public ResponseEntity<NoteResponse> getNote(@PathVariable UUID userId) {
         NoteResponse note = userService.getActiveNote(userId);
         return note != null
                 ? ResponseEntity.ok(note)
                 : ResponseEntity.noContent().build();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Email Verification & Change (requires auth)
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/users/me/send-verification-email
+     * Resend verification email for the current (unverified) email.
+     */
+    @PostMapping("/me/send-verification-email")
+    public ResponseEntity<Void> sendVerificationEmail() {
+        emailVerificationService.sendVerificationEmail(currentUserId());
+        return ResponseEntity.accepted().build();
+    }
+
+    /**
+     * POST /api/users/me/email
+     * Request an email address change (sends verification to new email).
+     */
+    @PostMapping("/me/email")
+    public ResponseEntity<Void> requestEmailChange(
+            @Valid @RequestBody ChangeEmailRequest request) {
+        emailVerificationService.requestEmailChange(currentUserId(), request);
+        return ResponseEntity.accepted().build();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Helper
+    // ─────────────────────────────────────────────────────────────
+
+    private UUID currentUserId() {
+        return SecurityUtils.getCurrentUserId();
     }
 }
