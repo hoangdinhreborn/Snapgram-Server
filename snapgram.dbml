@@ -187,10 +187,10 @@ TableGroup MEDIA_DB {
 Table content_posts {
   id uuid [pk]
   author_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
-  content_type varchar(20) [not null, note: 'REEL / ARTICLE / IMAGE']
+  content_type varchar(20) [not null, note: 'IMAGE / VIDEO / CAROUSEL / TEXT']
   caption text
-  media_id uuid [note: 'Recommended normalized logical reference → media_db.media_files.id']
-  media_url varchar(1000) [note: 'Optional resolved/snapshot URL; media_id is the canonical logical media reference when present']
+  media_id uuid [note: 'Recommended normalized logical reference → media_db.media_files.id (cover item)']
+  media_url varchar(1000) [note: 'Optional resolved/snapshot URL; cover/preview item']
   tags text
   like_count bigint [not null, default: 0]
   comment_count bigint [not null, default: 0]
@@ -209,6 +209,27 @@ Table content_posts {
     media_id
     created_at
   }
+}
+
+Table content_post_media {
+  id uuid [pk]
+  post_id uuid [not null]
+  media_id uuid [note: 'Logical reference → media_db.media_files.id']
+  media_url varchar(1000) [not null]
+  thumbnail_url varchar(1000)
+  media_type varchar(20) [not null, note: 'IMAGE / VIDEO']
+  sort_order int [not null, default: 0, note: 'Display sequence in carousel/album (0-indexed)']
+  width int
+  height int
+  duration_sec int [note: 'Duration in seconds if video']
+  created_at timestamptz [not null]
+
+  Indexes {
+    post_id
+    (post_id, sort_order) [unique]
+  }
+
+  Note: 'Supports multiple photos/videos per post (Carousel / Album). 1 post has 1..N media items.'
 }
 
 Table content_comments {
@@ -436,6 +457,7 @@ Table content_post_mentions {
 }
 
 Ref: content_posts.id < content_comments.post_id
+Ref: content_posts.id < content_post_media.post_id
 Ref: content_comments.id < content_comments.parent_comment_id
 Ref: content_comments.id < content_comment_likes.comment_id
 Ref: content_posts.id < content_interactions.post_id
@@ -452,6 +474,7 @@ Ref: content_posts.id < content_post_mentions.post_id
 
 TableGroup CONTENT_DB {
   content_posts
+  content_post_media
   content_comments
   content_comment_likes
   content_interactions
@@ -799,6 +822,7 @@ Ref: auth_users.id < content_post_mentions.mentioned_user_id
 
 // MEDIA → CONTENT
 Ref: media_files.id < content_posts.media_id
+Ref: media_files.id < content_post_media.media_id
 Ref: media_files.id < content_stories.media_id
 
 // AUTH → CHAT

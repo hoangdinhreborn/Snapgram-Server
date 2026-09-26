@@ -6,7 +6,6 @@ services:
     restart: unless-stopped
     ports:
       - "9092:9092"
-      - "9094:9094"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -29,6 +28,21 @@ services:
       timeout: 10s
       retries: 12
       start_period: 20s
+
+  kafka-init:
+    image: apache/kafka:4.3.1
+    container_name: snapgram-kafka-init
+    restart: "no"
+    environment:
+      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      KAFKA_DIRECT: "true"
+      MAX_RETRIES: "30"
+    volumes:
+      - ./create-topics.sh:/create-topics.sh:ro
+    entrypoint: ["/bin/bash", "/create-topics.sh"]
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   redis:
     image: redis:8-alpine
@@ -184,6 +198,20 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: snapgram-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8089:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: snapgram
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   # ========== Application Services ==========
   auth-service:

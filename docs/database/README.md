@@ -29,6 +29,11 @@ Current baseline is `V1`:
 - `recommender-service`: CQRS post/interaction/follow/block/mute read models
 - `notification-service`: notifications + device tokens
 
+Subsequent migrations `V2+`:
+
+- `auth-service`: `V2__add_email_verification_and_password_reset.sql` (email verification, password reset tokens)
+- `content-service`: `V2__create_post_media.sql` (supports multiple photos/videos per post — Carousel/Album)
+
 ## Important constraint rules
 
 - Comment parent reference is constrained to the same post.

@@ -6,6 +6,7 @@ import com.example.media.dto.PresignedUrlResponse;
 import com.example.media.entity.MediaFile;
 import com.example.media.entity.MediaMetadata;
 import com.example.media.entity.MediaStatus;
+import com.example.media.event.MediaUploadedEvent;
 import com.example.media.exception.InvalidMediaException;
 import com.example.media.exception.MediaNotFoundException;
 import com.example.media.exception.UnauthorizedException;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,6 +32,8 @@ import java.util.UUID;
 @Slf4j
 @RequiredArgsConstructor
 public class MediaService {
+
+    private static final String TOPIC_MEDIA_UPLOADED = "media.uploaded";
 
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
             "image/jpeg", "image/png", "image/webp", "image/gif"
@@ -55,6 +59,7 @@ public class MediaService {
     private final MediaMetadataRepository mediaMetadataRepository;
     private final StorageService storageService;
     private final ImageProcessingService imageProcessingService;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     // ─────────────────────────────────────────────────────────────
     // Direct Upload (Multipart)
@@ -126,7 +131,12 @@ public class MediaService {
             }
 
             log.info("Media created successfully: id={}, ownerId={}", saved.getId(), ownerId);
-            return toResponse(saved);
+            MediaResponse response = toResponse(saved);
+
+            // 5. Publish Kafka event
+            publishMediaUploadedEvent(saved, width, height);
+
+            return response;
 
         } catch (Exception e) {
             log.error("Failed to process media upload: {}", e.getMessage(), e);
@@ -184,6 +194,8 @@ public class MediaService {
         if (mediaFile.getStatus() == MediaStatus.UPLOADING) {
             mediaFile.setStatus(MediaStatus.READY);
             mediaFileRepository.save(mediaFile);
+            // Publish event after confirmation
+            publishMediaUploadedEvent(mediaFile, null, null);
         }
 
         return toResponse(mediaFile);
@@ -232,6 +244,32 @@ public class MediaService {
     // ─────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────
+
+    private void publishMediaUploadedEvent(MediaFile mediaFile, Integer width, Integer height) {
+        try {
+            Integer w = width;
+            Integer h = height;
+            if (w == null && mediaFile.getMetadata() != null) {
+                w = mediaFile.getMetadata().getWidth();
+                h = mediaFile.getMetadata().getHeight();
+            }
+            MediaUploadedEvent event = MediaUploadedEvent.builder()
+                    .mediaId(mediaFile.getId().toString())
+                    .ownerId(mediaFile.getOwnerId().toString())
+                    .mimeType(mediaFile.getMimeType())
+                    .url(mediaFile.getUrl())
+                    .thumbnailUrl(mediaFile.getThumbnailUrl())
+                    .sizeBytes(mediaFile.getSizeBytes())
+                    .width(w)
+                    .height(h)
+                    .uploadedAt(mediaFile.getCreatedAt())
+                    .build();
+            kafkaTemplate.send(TOPIC_MEDIA_UPLOADED, mediaFile.getId().toString(), event);
+            log.debug("Published MediaUploadedEvent for mediaId={}", mediaFile.getId());
+        } catch (Exception e) {
+            log.warn("Failed to publish MediaUploadedEvent for mediaId={}: {}", mediaFile.getId(), e.getMessage());
+        }
+    }
 
     private boolean isSupportedType(String mimeType) {
         return ALLOWED_IMAGE_TYPES.contains(mimeType) || ALLOWED_VIDEO_TYPES.contains(mimeType);

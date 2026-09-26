@@ -1,6 +1,11 @@
 server:
   port: 8084
 
+app:
+  content:
+    feed-page-size: 20
+    story-ttl-hours: 24
+
 spring:
   application:
     name: content-service
@@ -19,6 +24,10 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000   # 5 minutes default
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   flyway:
@@ -40,3 +49,11 @@ management:
     health:
       probes:
         enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
