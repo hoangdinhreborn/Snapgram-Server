@@ -6,3 +6,6 @@
 **/target/
 **/build/
 **/logs/
+*.class
+*.log
+docker-data/
