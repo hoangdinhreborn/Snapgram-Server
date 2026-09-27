@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+.github
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+
+# Build output
+**/target/
+**/build/
+**/out/
+
+# Logs
+**/logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile*
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Documentation / misc
+README.md
+docs/
+
+# Database / temp data
+**/.tmp/
+**/tmp/
+**/*.sqlite
+**/*.db
