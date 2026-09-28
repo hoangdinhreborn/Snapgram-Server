@@ -414,6 +414,7 @@ com.example.<service>/
 | `docs/services/auth/LOGIN_REGISTER_SERVICE.md`                 | Luồng đăng nhập / đăng ký              |
 | `docs/services/auth/RBAC_ROLE_BASED_ACCESS_CONTROL.md`        | Phân quyền theo role                    |
 | `docs/services/auth/ADMIN_DASHBOARD_AND_MANAGEMENT.md`         | Hướng dẫn tích hợp Admin Dashboard     |
+| `docs/run/PRODUCTION_DEPLOYMENT_AND_SCALING_GUIDE.md`          | Hướng dẫn chạy Production & Scale tải   |
 | `infra/docker-compose.yml`                                     | Cấu hình toàn bộ hạ tầng               |
 
 ---

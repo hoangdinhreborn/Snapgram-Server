@@ -18,17 +18,17 @@ spring:
         webflux:
           routes:
             - id: auth-service
-              uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+              uri: lb://auth-service
               predicates:
                 - Path=/api/auth/**,/api/users/**,/api/admin/users/**
 
             - id: content-service
-              uri: ${CONTENT_SERVICE_URL:http://localhost:8084}
+              uri: lb://content-service
               predicates:
                 - Path=/api/content/**,/api/posts/**,/api/stories/**,/api/saved/**,/api/reports/**,/api/hashtags/**,/api/follows/**,/api/social/**,/api/admin/reports/**,/api/admin/content/**,/api/admin/posts/**
 
             - id: chat-service
-              uri: ${CHAT_SERVICE_URL:http://localhost:8083}
+              uri: lb://chat-service
               predicates:
                 - Path=/api/conv/**
 
@@ -40,22 +40,22 @@ spring:
                 - Path=/ws/chat/**
 
             - id: chatbot-service
-              uri: ${CHATBOT_SERVICE_URL:http://localhost:8082}
+              uri: lb://chatbot-service
               predicates:
                 - Path=/api/bot/**
 
             - id: recommender-service
-              uri: ${RECOMMENDER_SERVICE_URL:http://localhost:8090}
+              uri: lb://recommender-service
               predicates:
                 - Path=/api/feed/**
 
             - id: media-service
-              uri: ${MEDIA_SERVICE_URL:http://localhost:8085}
+              uri: lb://media-service
               predicates:
                 - Path=/api/media/**,/api/admin/media/**
 
             - id: notification-service
-              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+              uri: lb://notification-service
               predicates:
                 - Path=/api/notifications/**
 
@@ -67,6 +67,29 @@ spring:
 
           metrics:
             enabled: true
+
+    discovery:
+      client:
+        simple:
+          instances:
+            auth-service:
+              - uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+            content-service:
+              - uri: ${CONTENT_SERVICE_URL:http://localhost:8084}
+            chat-service:
+              - uri: ${CHAT_SERVICE_URL:http://localhost:8083}
+            chatbot-service:
+              - uri: ${CHATBOT_SERVICE_URL:http://localhost:8082}
+            recommender-service:
+              - uri: ${RECOMMENDER_SERVICE_URL:http://localhost:8090}
+            media-service:
+              - uri: ${MEDIA_SERVICE_URL:http://localhost:8085}
+            notification-service:
+              - uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 10s
 
   data:
     redis:

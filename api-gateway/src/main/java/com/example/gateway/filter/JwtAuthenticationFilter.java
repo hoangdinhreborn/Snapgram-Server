@@ -109,11 +109,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     log.debug("Authenticated userId={}, username={}, roles={}, path={}",
                             userId, username, roles, path);
 
-                    // Mutate request: thêm headers, xoá Authorization gốc để downstream không bị rò token
+                    // Mutate request: ghi đè headers đã xác thực, đảm bảo downstream nhận thông tin tin cậy tuyệt đối
                     ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                            .header(HEADER_USER_ID, userId)
-                            .header(HEADER_USERNAME, username)
-                            .header(HEADER_USER_ROLES, roles)
+                            .headers(httpHeaders -> {
+                                httpHeaders.set(HEADER_USER_ID, userId);
+                                httpHeaders.set(HEADER_USERNAME, username);
+                                httpHeaders.set(HEADER_USER_ROLES, roles);
+                            })
                             .build();
 
                     return chain.filter(exchange.mutate().request(mutatedRequest).build());
