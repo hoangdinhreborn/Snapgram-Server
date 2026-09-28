@@ -1,6 +1,8 @@
 server:
   port: 8081
 app:
+  admin:
+    bootstrap-secret: ${ADMIN_BOOTSTRAP_SECRET}
   jwt:
     secret: ${SNAPGRAM_JWT_SECRET}
     issuer: ${SNAPGRAM_JWT_ISSUER:snapgram-auth}

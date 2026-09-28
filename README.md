@@ -1,4 +1,4 @@
-﻿# Snapgram Server
+# Snapgram Server
 
 Dự án **Snapgram** là một hệ thống mạng xã hội được xây dựng theo kiến trúc **microservices** sử dụng **Java / Spring Boot**. Tài liệu này dành cho **tất cả thành viên trong team**, cung cấp thông tin cần thiết để bắt đầu làm việc nhanh chóng.
 
@@ -7,7 +7,7 @@ Dự án **Snapgram** là một hệ thống mạng xã hội được xây dự
 ## Mục lục
 
 1. [Danh sách service & port](#1-danh-sách-service--port)
-2. [Kiến trúc xác thực — cách dùng X-User-Id](#2-kiến-trúc-xác-thực--cách-dùng-x-user-id)
+2. [Kiến trúc xác thực & phân quyền Admin — cách dùng UserContext](#2-kiến-trúc-xác-thực--phân-quyền-admin--cách-dùng-usercontext)
 3. [Giao tiếp giữa các service](#3-giao-tiếp-giữa-các-service)
 4. [Hướng dẫn chạy project](#4-hướng-dẫn-chạy-project)
 5. [Quy trình làm việc](#5-quy-trình-làm-việc)
@@ -30,18 +30,21 @@ Dự án **Snapgram** là một hệ thống mạng xã hội được xây dự
 
 ---
 
-## 2. Kiến trúc xác thực — cách dùng X-User-Id
+## 2. Kiến trúc xác thực & phân quyền Admin — cách dùng UserContext
 
 > ⚡ **Quy tắc quan trọng nhất của project:**
-> **API Gateway là nơi DUY NHẤT xác minh JWT.** Sau khi xác minh thành công, Gateway trích xuất `userId` và đính kèm vào header `X-User-Id` rồi mới forward request xuống các service.
-> Các service downstream **KHÔNG cần** tự verify JWT hay gọi lại `auth-service`.
+> **API Gateway là nơi DUY NHẤT xác minh JWT.** Sau khi xác minh thành công, Gateway trích xuất thông tin người dùng từ payload và đính kèm vào các headers:
+> - `X-User-Id`: UUID của user
+> - `X-Username`: Username của user
+> - `X-User-Roles`: Danh sách role phân tách bằng dấu phẩy (vd: `USER,ADMIN`)
+> Các service downstream **KHÔNG cần** tự verify JWT hay gọi lại `auth-service`, chỉ cần đọc thông tin thông qua class tiện ích `UserContext`.
 
-### 2.1 Luồng xác thực
+### 2.1 Luồng xác thực & phân quyền
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  CLIENT                                                         │
-│  Request: POST /api/media/upload                                │
+│  Request: POST /api/admin/reports/123/resolve                   │
 │  Header:  Authorization: Bearer <jwt_token>                     │
 └────────────────────────────┬────────────────────────────────────┘
                              │
@@ -50,113 +53,197 @@ Dự án **Snapgram** là một hệ thống mạng xã hội được xây dự
 │  API GATEWAY  (port 8080)                                       │
 │                                                                 │
 │  1. Nhận request từ client                                      │
-│  2. Xác minh JWT token (chữ ký, hạn dùng, v.v.)                │
-│  3. Nếu hợp lệ → trích xuất userId từ payload                  │
-│  4. Thêm header:  X-User-Id: <userId>                          │
+│  2. Gọi auth-service /api/auth/verify (check signature, hạn,    │
+│     blacklist token)                                            │
+│  3. Nếu hợp lệ → trích xuất: sub (userId), username, roles      │
+│  4. Đính kèm downstream headers:                                │
+│       X-User-Id: <userId>                                       │
+│       X-Username: <username>                                    │
+│       X-User-Roles: USER,ADMIN                                  │
 │  5. Forward request đến service đích                            │
 │  6. Nếu không hợp lệ → trả về 401 Unauthorized ngay            │
 └────────────────────────────┬────────────────────────────────────┘
-                             │  forward (kèm X-User-Id, không còn JWT)
+                             │  forward (kèm các headers, không còn JWT)
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  DOWNSTREAM SERVICE  (vd: media-service:8085)                   │
+│  DOWNSTREAM SERVICE  (vd: content-service:8084)                 │
 │                                                                 │
-│  ✅ Gọi UserContext.getCurrentUserId() → nhận UUID              │
+│  ✅ UserContext.getCurrentUserId() → nhận UUID                   │
+│  ✅ UserContext.isAdmin()          → kiểm tra quyền Admin       │
+│  ✅ UserContext.requireAdmin()     → chặn (403) nếu không phải  │
 │  ❌ KHÔNG cần: verify JWT, @RequestHeader, gọi auth-service     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Pattern chuẩn — dùng `UserContext`
 
-Mỗi service tạo một class `UserContext` trong package `util`. Đây là cách **toàn bộ team phải làm thống nhất**, tham khảo theo `media-service`:
+Mỗi service tạo một class `UserContext` trong package `util`. Đây là cách **toàn bộ team phải làm thống nhất**:
 
 **`util/UserContext.java`**
 
 ```java
 package com.example.<service>.util;
 
+import com.example.<service>.exception.AccessDeniedException;
 import com.example.<service>.exception.UnauthorizedException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 public final class UserContext {
 
-    public static final String HEADER_USER_ID = "X-User-Id";
+    public static final String HEADER_USER_ID    = "X-User-Id";
+    public static final String HEADER_USERNAME   = "X-Username";
+    public static final String HEADER_USER_ROLES = "X-User-Roles";
 
     private UserContext() {}
 
-    public static UUID getCurrentUserId() {
+    private static HttpServletRequest getRequest() {
         ServletRequestAttributes attributes =
-            (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attributes != null) {
-            String userIdStr = attributes.getRequest().getHeader(HEADER_USER_ID);
-            if (userIdStr != null && !userIdStr.isBlank()) {
-                try {
-                    return UUID.fromString(userIdStr.trim());
-                } catch (IllegalArgumentException e) {
-                    throw new UnauthorizedException("Invalid X-User-Id format: must be a valid UUID");
-                }
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            throw new UnauthorizedException("No active HTTP request context");
+        }
+        return attributes.getRequest();
+    }
+
+    /**
+     * Lấy UUID của người dùng hiện tại từ header X-User-Id.
+     * Ném UnauthorizedException (401) nếu thiếu hoặc sai format.
+     */
+    public static UUID getCurrentUserId() {
+        String userIdStr = getRequest().getHeader(HEADER_USER_ID);
+        if (userIdStr != null && !userIdStr.isBlank()) {
+            try {
+                return UUID.fromString(userIdStr.trim());
+            } catch (IllegalArgumentException e) {
+                throw new UnauthorizedException("Invalid X-User-Id format: must be a valid UUID");
             }
         }
         throw new UnauthorizedException("Missing authentication: X-User-Id header is required");
     }
+
+    /**
+     * Lấy Username từ header X-Username.
+     */
+    public static String getUsername() {
+        String username = getRequest().getHeader(HEADER_USERNAME);
+        return username != null ? username.trim() : "";
+    }
+
+    /**
+     * Lấy danh sách Roles từ header X-User-Roles (ví dụ: ["USER", "ADMIN"]).
+     */
+    public static List<String> getUserRoles() {
+        String rolesStr = getRequest().getHeader(HEADER_USER_ROLES);
+        if (rolesStr == null || rolesStr.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(rolesStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+    }
+
+    /**
+     * Kiểm tra user hiện tại có sở hữu role cụ thể hay không.
+     */
+    public static boolean hasRole(String role) {
+        if (role == null || role.isBlank()) return false;
+        String normalized = role.startsWith("ROLE_") ? role.substring(5) : role;
+        return getUserRoles().stream()
+                .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
+                .anyMatch(r -> r.equalsIgnoreCase(normalized));
+    }
+
+    /**
+     * Kiểm tra nhanh user hiện tại có role ADMIN hay không.
+     */
+    public static boolean isAdmin() {
+        return hasRole("ADMIN");
+    }
+
+    /**
+     * Bảo vệ endpoint Admin: nếu không phải ADMIN, ném AccessDeniedException (HTTP 403 Forbidden).
+     */
+    public static void requireAdmin() {
+        if (!isAdmin()) {
+            throw new AccessDeniedException("Access denied: ADMIN role required");
+        }
+    }
 }
 ```
 
-**Dùng trong Controller — KHÔNG truyền header vào method signature:**
+### 2.3 Cách dùng trong Controller
 
+**Dùng cho API người dùng thông thường:**
+```java
+@PostMapping
+public ResponseEntity<PostResponse> createPost(@Valid @RequestBody CreatePostRequest request) {
+    UUID currentUserId = UserContext.getCurrentUserId(); // ← lấy userId ở đây
+    return ResponseEntity.status(HttpStatus.CREATED).body(postService.createPost(currentUserId, request));
+}
+```
+
+**Dùng cho API Admin / Quản trị viên:**
 ```java
 @RestController
-@RequestMapping("/api/media")
+@RequestMapping("/api/admin/reports")
 @RequiredArgsConstructor
-public class MediaController {
+public class AdminReportController {
 
-    private final MediaService mediaService;
+    private final ReportService reportService;
 
-    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<MediaResponse> upload(@RequestPart("file") MultipartFile file) {
-        UUID currentUserId = UserContext.getCurrentUserId(); // ← lấy userId ở đây
-        MediaResponse response = mediaService.upload(currentUserId, file);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @GetMapping("/me")
-    public ResponseEntity<Page<MediaResponse>> getMyMedia(
+    @GetMapping
+    public ResponseEntity<Page<ReportResponse>> getPendingReports(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UUID currentUserId = UserContext.getCurrentUserId(); // ← lấy userId ở đây
+        // Chỉ cần gọi 1 dòng: nếu không phải ADMIN, tự throw AccessDeniedException (403)
+        UserContext.requireAdmin();
+
         Pageable pageable = PageRequest.of(page, Math.min(size, 50));
-        return ResponseEntity.ok(mediaService.getMyMedia(currentUserId, pageable));
+        return ResponseEntity.ok(reportService.getPendingReports(pageable));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteMedia(@PathVariable UUID id) {
-        UUID currentUserId = UserContext.getCurrentUserId(); // ← lấy userId ở đây
-        mediaService.deleteMedia(currentUserId, id);
+    @PatchMapping("/{id}/resolve")
+    public ResponseEntity<Void> resolveReport(@PathVariable UUID id) {
+        UserContext.requireAdmin();
+        UUID adminId = UserContext.getCurrentUserId();
+        reportService.resolveReport(id, adminId);
         return ResponseEntity.noContent().build();
     }
 }
 ```
 
-> 💡 `UserContext.getCurrentUserId()` hoạt động nhờ `RequestContextHolder` của Spring — lấy được request hiện tại từ bất kỳ đâu trong luồng xử lý mà không cần truyền tham số qua các tầng.
+> 💡 `UserContext` hoạt động nhờ `RequestContextHolder` của Spring — lấy được request hiện tại từ bất kỳ đâu trong thread xử lý mà không cần truyền tham số qua các tầng.
 
-### 2.3 Lưu ý quan trọng
+### 2.4 Quy chuẩn phân chia API Admin theo từng Service
+
+| Service | Đường dẫn API Admin | Nghiệp vụ xử lý |
+|---|---|---|
+| `auth-service` | `/api/admin/users/**` | Khóa/mở khóa tài khoản (ban/unban), gán role Admin/Mod, quản lý user |
+| `content-service` | `/api/admin/reports/**`, `/api/admin/content/**` | Xem danh sách report, duyệt/bác bỏ report, xóa/ẩn bài viết vi phạm |
+| `media-service` | `/api/admin/media/**` | Xóa media vi phạm bản quyền/chính sách, thống kê dung lượng lưu trữ |
+
+### 2.5 Lưu ý quan trọng
 
 - ✅ Đặt `UserContext.java` trong package `util` của từng service.
 - ✅ `getCurrentUserId()` trả về `UUID` — không phải `String`.
-- ✅ Method tự throw `UnauthorizedException` nếu header bị thiếu hoặc sai định dạng — controller không cần kiểm tra thêm.
+- ✅ Dùng `UserContext.requireAdmin()` ở đầu method API admin để chặn quyền sớm và trả về HTTP `403 Forbidden`.
 - ❌ **Không** dùng `@RequestHeader("X-User-Id")` trong method signature — dùng `UserContext` thay thế.
-- ❌ **Không** expose port nội bộ (8081, 8082...) ra ngoài máy chủ — header `X-User-Id` chỉ tin cậy khi đến qua Gateway.
-- ✅ Khi viết unit test, mock `RequestContextHolder` hoặc dùng `MockMvc` với header:
+- ❌ **Không** expose port nội bộ (8081, 8082...) ra ngoài máy chủ — các headers `X-User-*` chỉ tin cậy khi đến qua Gateway.
+- ✅ Khi viết unit test, mock `RequestContextHolder` hoặc dùng `MockMvc` với headers:
 
 ```java
-mockMvc.perform(post("/api/media/upload")
+mockMvc.perform(get("/api/admin/reports")
         .header("X-User-Id", UUID.randomUUID().toString())
-        .contentType(MediaType.MULTIPART_FORM_DATA)
-        .content(...))
-        .andExpect(status().isCreated());
+        .header("X-User-Roles", "ADMIN,USER"))
+        .andExpect(status().isOk());
 ```
 
 ---
@@ -326,6 +413,7 @@ com.example.<service>/
 | `docs/database/README.md`                                      | Hướng dẫn Flyway migration              |
 | `docs/services/auth/LOGIN_REGISTER_SERVICE.md`                 | Luồng đăng nhập / đăng ký              |
 | `docs/services/auth/RBAC_ROLE_BASED_ACCESS_CONTROL.md`        | Phân quyền theo role                    |
+| `docs/services/auth/ADMIN_DASHBOARD_AND_MANAGEMENT.md`         | Hướng dẫn tích hợp Admin Dashboard     |
 | `infra/docker-compose.yml`                                     | Cấu hình toàn bộ hạ tầng               |
 
 ---

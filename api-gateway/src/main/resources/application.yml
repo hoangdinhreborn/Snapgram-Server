@@ -20,17 +20,12 @@ spring:
             - id: auth-service
               uri: ${AUTH_SERVICE_URL:http://localhost:8081}
               predicates:
-                - Path=/api/auth/**
+                - Path=/api/auth/**,/api/users/**,/api/admin/users/**
 
             - id: content-service
               uri: ${CONTENT_SERVICE_URL:http://localhost:8084}
               predicates:
-                - Path=/api/content/**
-
-            - id: social-service
-              uri: ${CONTENT_SERVICE_URL:http://localhost:8084}
-              predicates:
-                - Path=/api/social/**
+                - Path=/api/content/**,/api/posts/**,/api/stories/**,/api/saved/**,/api/reports/**,/api/hashtags/**,/api/follows/**,/api/social/**,/api/admin/reports/**,/api/admin/content/**,/api/admin/posts/**
 
             - id: chat-service
               uri: ${CHAT_SERVICE_URL:http://localhost:8083}
@@ -57,7 +52,7 @@ spring:
             - id: media-service
               uri: ${MEDIA_SERVICE_URL:http://localhost:8085}
               predicates:
-                - Path=/api/media/**
+                - Path=/api/media/**,/api/admin/media/**
 
             - id: notification-service
               uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}

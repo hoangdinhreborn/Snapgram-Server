@@ -6,6 +6,7 @@ import com.example.auth.dto.RefreshTokenRequest;
 import com.example.auth.dto.RegisterRequest;
 import com.example.auth.entity.AuthRefreshToken;
 import com.example.auth.entity.AuthUser;
+import com.example.auth.exception.AccountBannedException;
 import com.example.auth.exception.DuplicateUserException;
 import com.example.auth.exception.InvalidCredentialsException;
 import com.example.auth.exception.TwoFaException;
@@ -93,6 +94,11 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
+        if (user.isBanned()) {
+            log.warn("Login blocked: user {} is banned", user.getUsername());
+            throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+        }
+
         log.info("User logged in: {}", user.getUsername());
 
         // If 2FA is enabled → return a short-lived temp token, not full tokens
@@ -143,6 +149,11 @@ public class AuthService {
             // Get user
             AuthUser user = userRepository.findById(userId)
                     .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+
+            if (user.isBanned()) {
+                log.warn("Refresh token blocked: user {} is banned", user.getUsername());
+                throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+            }
 
             log.info("Token refreshed for user: {}", user.getUsername());
 
@@ -263,6 +274,11 @@ public class AuthService {
 
         AuthUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+
+        if (user.isBanned()) {
+            log.warn("2FA login blocked: user {} is banned", user.getUsername());
+            throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+        }
 
         boolean verified = false;
         if (request.getTotpCode() != null && !request.getTotpCode().isBlank()) {

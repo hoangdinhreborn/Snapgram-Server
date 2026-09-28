@@ -68,6 +68,15 @@ public class AuthUser {
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 
+    @Column(name = "is_banned", nullable = false)
+    private boolean banned = false;
+
+    @Column(name = "banned_at")
+    private Instant bannedAt;
+
+    @Column(name = "ban_reason", length = 255)
+    private String banReason;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

@@ -2,18 +2,24 @@ package com.example.content.service;
 
 import com.example.content.dto.CreateReportRequest;
 import com.example.content.dto.ReportResponse;
+import com.example.content.entity.Post;
+import com.example.content.entity.PostStatus;
 import com.example.content.entity.Report;
 import com.example.content.entity.ReportStatus;
 import com.example.content.entity.ReportTargetType;
 import com.example.content.event.ModerationEvent;
+import com.example.content.exception.ContentNotFoundException;
+import com.example.content.repository.CommentRepository;
+import com.example.content.repository.PostRepository;
 import com.example.content.repository.ReportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -24,6 +30,8 @@ public class ReportService {
     private static final String TOPIC_MODERATION = "moderation.events";
 
     private final ReportRepository reportRepository;
+    private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Transactional
@@ -58,6 +66,73 @@ public class ReportService {
         }
 
         return toResponse(saved);
+    }
+
+    /**
+     * Admin: Get all reports with optional status and targetType filters.
+     */
+    @Transactional(readOnly = true)
+    public Page<ReportResponse> getReports(ReportStatus status, ReportTargetType targetType, Pageable pageable) {
+        Page<Report> page;
+        if (status != null && targetType != null) {
+            page = reportRepository.findByStatusAndTargetType(status, targetType, pageable);
+        } else if (status != null) {
+            page = reportRepository.findByStatus(status, pageable);
+        } else {
+            page = reportRepository.findAll(pageable);
+        }
+        return page.map(this::toResponse);
+    }
+
+    /**
+     * Admin: Get report detail by ID.
+     */
+    @Transactional(readOnly = true)
+    public ReportResponse getReportById(UUID id) {
+        Report report = reportRepository.findById(id)
+                .orElseThrow(() -> new ContentNotFoundException("Report not found: " + id));
+        return toResponse(report);
+    }
+
+    /**
+     * Admin: Resolve a report (hide/delete offending content).
+     */
+    @Transactional
+    public ReportResponse resolveReport(UUID id, UUID adminId) {
+        Report report = reportRepository.findById(id)
+                .orElseThrow(() -> new ContentNotFoundException("Report not found: " + id));
+
+        if (report.getTargetType() == ReportTargetType.POST) {
+            postRepository.findById(report.getTargetId()).ifPresent(post -> {
+                post.setStatus(PostStatus.DELETED);
+                postRepository.save(post);
+                log.info("Post {} marked as DELETED by admin {} due to report {}", post.getId(), adminId, id);
+            });
+        } else if (report.getTargetType() == ReportTargetType.COMMENT) {
+            commentRepository.findById(report.getTargetId()).ifPresent(comment -> {
+                commentRepository.delete(comment);
+                log.info("Comment {} deleted by admin {} due to report {}", comment.getId(), adminId, id);
+            });
+        }
+
+        report.setStatus(ReportStatus.RESOLVED);
+        Report updated = reportRepository.save(report);
+        log.info("Report {} resolved by admin {}", id, adminId);
+        return toResponse(updated);
+    }
+
+    /**
+     * Admin: Dismiss a report (report deemed invalid / not violating policies).
+     */
+    @Transactional
+    public ReportResponse dismissReport(UUID id, UUID adminId) {
+        Report report = reportRepository.findById(id)
+                .orElseThrow(() -> new ContentNotFoundException("Report not found: " + id));
+
+        report.setStatus(ReportStatus.DISMISSED);
+        Report updated = reportRepository.save(report);
+        log.info("Report {} dismissed by admin {}", id, adminId);
+        return toResponse(updated);
     }
 
     private ReportResponse toResponse(Report r) {
