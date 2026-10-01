@@ -15,5 +15,6 @@ public class PostCreatedEvent {
     private List<String> mediaUrls;
     private List<String> hashtags;
     private List<String> mentionedUserIds;
+    private List<String> followerIds;
     private Instant createdAt;
 }

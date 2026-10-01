@@ -3,7 +3,6 @@ package com.example.notification.service;
 import com.example.notification.entity.Notification;
 import com.example.notification.entity.NotificationType;
 import com.example.notification.repository.DeviceTokenRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -65,5 +64,39 @@ class NotificationDeliveryServiceTest {
         notificationDeliveryService.deliver(notification);
 
         verify(webSocketNotificationService, never()).sendToUser(any(), anyMap());
+    }
+
+    @Test
+    void shouldSendGroupedUpdateOverWsWhenUserOnline() {
+        UUID userId = UUID.randomUUID();
+        Notification notification = notificationFor(userId);
+        when(redisTemplate.hasKey("presence:" + userId)).thenReturn(Boolean.TRUE);
+
+        notificationDeliveryService.deliverGroupedUpdate(notification);
+
+        verify(webSocketNotificationService).sendToUser(eq(userId), anyMap());
+        verify(deviceTokenRepository, never()).findByUserId(userId);
+    }
+
+    @Test
+    void shouldNotSendRepeatedFcmForGroupedUpdateWhenUserOffline() {
+        UUID userId = UUID.randomUUID();
+        Notification notification = notificationFor(userId);
+        when(redisTemplate.hasKey("presence:" + userId)).thenReturn(Boolean.FALSE);
+
+        notificationDeliveryService.deliverGroupedUpdate(notification);
+
+        verify(webSocketNotificationService, never()).sendToUser(any(), anyMap());
+        verify(deviceTokenRepository, never()).findByUserId(userId);
+    }
+
+    private Notification notificationFor(UUID userId) {
+        Notification notification = new Notification();
+        notification.setId(UUID.randomUUID());
+        notification.setUserId(userId);
+        notification.setType(NotificationType.LIKE);
+        notification.setPayload("{\"postId\":\"abc\"}");
+        notification.setCreatedAt(Instant.now());
+        return notification;
     }
 }

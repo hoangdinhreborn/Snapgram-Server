@@ -2,7 +2,6 @@ package com.example.notification.service;
 
 import com.example.notification.entity.Notification;
 import com.example.notification.repository.DeviceTokenRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -21,9 +20,16 @@ public class NotificationDeliveryService {
     private final StringRedisTemplate redisTemplate;
     private final WebSocketNotificationService webSocketNotificationService;
     private final DeviceTokenRepository deviceTokenRepository;
-    private final ObjectMapper objectMapper;
 
     public void deliver(Notification notification) {
+        deliver(notification, true);
+    }
+
+    public void deliverGroupedUpdate(Notification notification) {
+        deliver(notification, false);
+    }
+
+    private void deliver(Notification notification, boolean offlineFallback) {
         UUID userId = notification.getUserId();
         boolean isOnline = Boolean.TRUE.equals(redisTemplate.hasKey(PRESENCE_KEY_PREFIX + userId));
 
@@ -39,13 +45,19 @@ public class NotificationDeliveryService {
                 webSocketNotificationService.sendToUser(userId, payload);
                 log.info("Sent WS notification to online user {}", userId);
             } catch (Exception e) {
-                log.warn("WS delivery failed for user {}. Falling back to mock FCM", userId, e);
-                sendMockFcm(userId, notification);
+                log.warn("WS delivery failed for user {}", userId, e);
+                if (offlineFallback) {
+                    sendMockFcm(userId, notification);
+                } else {
+                    throw e;
+                }
             }
             return;
         }
 
-        sendMockFcm(userId, notification);
+        if (offlineFallback) {
+            sendMockFcm(userId, notification);
+        }
     }
 
     public void sendMockFcm(UUID userId, Notification notification) {
