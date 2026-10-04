@@ -28,7 +28,7 @@ public class InteractionService {
 
     @Transactional
     public void interact(UUID postId, UUID userId, InteractionRequest request) {
-        postRepository.findByIdAndStatusNot(postId, PostStatus.DELETED)
+        Post post = postRepository.findByIdAndStatusNot(postId, PostStatus.DELETED)
                 .orElseThrow(() -> new ContentNotFoundException("Post not found"));
 
         InteractionType type;
@@ -54,11 +54,13 @@ public class InteractionService {
         interaction.setType(type);
         interaction.setWatchTimeRatio(request.getWatchTimeRatio());
         interaction.setExplicitRating(request.getExplicitRating());
-        interactionRepository.save(interaction);
+        Interaction savedInteraction = interactionRepository.save(interaction);
 
         try {
             kafkaTemplate.send(TOPIC_INTERACTION, postId.toString(), ContentInteractionEvent.builder()
+                .eventId(savedInteraction.getId().toString())
                     .userId(userId.toString())
+                .targetUserId(post.getAuthorId().toString())
                     .postId(postId.toString())
                     .type(type.name())
                     .watchTimeRatio(request.getWatchTimeRatio() != null

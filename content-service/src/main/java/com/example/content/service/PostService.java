@@ -165,6 +165,7 @@ public class PostService {
                 // Publish mention event
                 try {
                     kafkaTemplate.send(TOPIC_MENTION, mentionedId.toString(), MentionEvent.builder()
+                            .eventId(EventIds.stableFor(TOPIC_MENTION, saved.getId().toString(), mentionedId.toString()))
                             .mentionedUserId(mentionedId.toString())
                             .postId(saved.getId().toString())
                             .authorId(authorId.toString())
@@ -185,6 +186,7 @@ public class PostService {
                 : List.of();
 
             kafkaTemplate.send(TOPIC_POST_CREATED, saved.getId().toString(), PostCreatedEvent.builder()
+                    .eventId(saved.getId().toString())
                     .postId(saved.getId().toString())
                     .authorId(authorId.toString())
                     .contentType(type.name())

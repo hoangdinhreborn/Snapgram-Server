@@ -5,6 +5,7 @@ import java.time.Instant;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class FollowEvent {
+    private String eventId;
     private String followerId;
     private String followingId;
     private String status;

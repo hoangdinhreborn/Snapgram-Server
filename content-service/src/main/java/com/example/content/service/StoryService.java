@@ -22,7 +22,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -68,7 +67,14 @@ public class StoryService {
         Story saved = storyRepository.save(story);
 
         try {
+            List<String> followerIds = visibility == Visibility.PUBLIC || visibility == Visibility.FOLLOWERS
+                ? followRepository.findAcceptedFollowerIds(authorId).stream()
+                    .map(UUID::toString)
+                    .toList()
+                : List.of();
+
             kafkaTemplate.send(TOPIC_STORY_CREATED, saved.getId().toString(), StoryCreatedEvent.builder()
+                .eventId(saved.getId().toString())
                     .storyId(saved.getId().toString())
                     .authorId(authorId.toString())
                     .mediaUrl(saved.getMediaUrl())
@@ -76,6 +82,7 @@ public class StoryService {
                     .visibility(visibility.name())
                     .expiresAt(saved.getExpiresAt())
                     .createdAt(saved.getCreatedAt())
+                    .followerIds(followerIds)
                     .build());
         } catch (Exception e) {
             log.warn("Failed to publish story-created event: {}", e.getMessage());
