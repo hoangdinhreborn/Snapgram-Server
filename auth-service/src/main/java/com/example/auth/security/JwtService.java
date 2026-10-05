@@ -22,6 +22,7 @@ public class JwtService {
     private static final String REFRESH_TOKEN = "refresh";
     private static final String TEMP_TOKEN    = "temp";
     private static final String ROLES_CLAIM   = "roles";
+    private static final String PERMISSIONS_CLAIM = "permissions";
 
     private final JwtProperties properties;
     private final SecretKey signingKey;
@@ -37,6 +38,14 @@ public class JwtService {
             AuthUser user,
             Collection<String> roles
     ) {
+        return generateAccessToken(user, roles, java.util.List.of());
+    }
+
+    public String generateAccessToken(
+            AuthUser user,
+            Collection<String> roles,
+            Collection<String> permissions
+    ) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(properties.accessTokenTtl());
 
@@ -47,8 +56,40 @@ public class JwtService {
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .claim("username", user.getUsername())
+                .claim("role", user.getRole() != null ? user.getRole().name() : "USER")
                 .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN)
                 .claim(ROLES_CLAIM, roles)
+                .claim(PERMISSIONS_CLAIM, permissions != null ? permissions : java.util.List.of())
+                .signWith(signingKey)
+                .compact();
+    }
+
+    public String generateAdminAccessToken(
+            AuthUser user,
+            Collection<String> roles
+    ) {
+        return generateAdminAccessToken(user, roles, java.util.List.of());
+    }
+
+    public String generateAdminAccessToken(
+            AuthUser user,
+            Collection<String> roles,
+            Collection<String> permissions
+    ) {
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(properties.adminAccessTokenTtl());
+
+        return Jwts.builder()
+                .id(UUID.randomUUID().toString())
+                .subject(user.getId().toString())
+                .issuer(properties.issuer())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiresAt))
+                .claim("username", user.getUsername())
+                .claim("role", user.getRole() != null ? user.getRole().name() : "ADMIN")
+                .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN)
+                .claim(ROLES_CLAIM, roles)
+                .claim(PERMISSIONS_CLAIM, permissions != null ? permissions : java.util.List.of())
                 .signWith(signingKey)
                 .compact();
     }
@@ -146,6 +187,22 @@ public class JwtService {
         Claims claims = parseToken(token);
 
         Object value = claims.get(ROLES_CLAIM);
+
+        if (value == null) {
+            return java.util.List.of();
+        }
+
+        return ((Collection<?>) value)
+                .stream()
+                .map(Object::toString)
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Collection<String> getPermissions(String token) {
+        Claims claims = parseToken(token);
+
+        Object value = claims.get(PERMISSIONS_CLAIM);
 
         if (value == null) {
             return java.util.List.of();

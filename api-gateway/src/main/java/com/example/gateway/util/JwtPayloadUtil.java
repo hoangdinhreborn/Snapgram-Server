@@ -83,4 +83,17 @@ public class JwtPayloadUtil {
         }
         return "";
     }
+
+    /**
+     * Extract permissions (JWT "permissions" claim) thành comma-separated string.
+     * Ví dụ: ["POST:DELETE", "REPORT:RESOLVE"] → "POST:DELETE,REPORT:RESOLVE"
+     */
+    @SuppressWarnings("unchecked")
+    public String getPermissionsAsString(Map<String, Object> payload) {
+        Object permsObj = payload.get("permissions");
+        if (permsObj instanceof List<?> perms) {
+            return String.join(",", (List<String>) perms);
+        }
+        return "";
+    }
 }

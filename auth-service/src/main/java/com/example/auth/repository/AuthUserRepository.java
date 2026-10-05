@@ -1,6 +1,7 @@
 package com.example.auth.repository;
 
 import com.example.auth.entity.AuthUser;
+import com.example.auth.entity.Role;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,6 +22,10 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, UUID> {
     boolean existsByEmail(String email);
 
     boolean existsByUsername(String username);
+
+    boolean existsByRole(Role role);
+
+    long countByRole(Role role);
 
     long countByBannedFalse();
 

@@ -1,4 +1,4 @@
-package com.example.auth.config;
+ package com.example.auth.config;
 
 import com.example.auth.security.JwtAuthenticationFilter;
 import com.example.auth.security.JwtProperties;
@@ -8,12 +8,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
@@ -24,14 +24,13 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationFilter jwtAuthenticationFilter,
-            CorsConfigurationSource corsConfigurationSource
+            JwtAuthenticationFilter jwtAuthenticationFilter
     ) throws Exception {
 
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .cors(AbstractHttpConfigurer::disable)
                 
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
 
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
@@ -44,6 +43,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login",
+                                "/api/auth/admin/login",
                                 "/api/auth/login/2fa",
                                 "/api/auth/refresh",
                                 "/api/auth/forgot-password",
@@ -57,8 +57,9 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
-                        // Admin-only endpoints
-                        .requestMatchers("/api/auth/admin/**").hasRole("ADMIN")
+                        // Admin-only endpoints protected by hasAuthority
+                        .requestMatchers("/api/auth/admin/**", "/api/admin/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ADMIN")
                         // Authenticated users
                         .anyRequest().authenticated()
                 )

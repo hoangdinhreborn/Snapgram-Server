@@ -95,8 +95,7 @@ public class FollowService {
         if (!follow.getFollowingId().equals(followingId)) {
             throw new AccessDeniedException("This is not your follow request");
         }
-        follow.setStatus(FollowStatus.REJECTED);
-        followRepository.save(follow);
+        followRepository.delete(follow);
     }
 
     @Transactional(readOnly = true)

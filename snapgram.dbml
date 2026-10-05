@@ -7,11 +7,19 @@ Project snapgram {
 // 1. AUTH DB — auth-service
 // Source of truth: identity, profile, privacy, block, presence, notes
 // ============================================================
+Enum user_role {
+  USER
+  ADMIN
+}
+
 Table auth_users {
   id uuid [pk]
   username varchar(50) [not null, unique]
   email varchar(255) [not null, unique]
   password_hash varchar(255) [not null]
+  role user_role [not null, default: 'USER']
+  failed_login_attempts int [not null, default: 0]
+  locked_until timestamptz
   display_name varchar(100)
   avatar_url varchar(500)
   bio text
@@ -26,19 +34,66 @@ Table auth_users {
   email_verified_at timestamptz
   show_activity_status boolean [not null, default: true]
   last_seen_at timestamptz
+  is_banned boolean [not null, default: false]
+  banned_at timestamptz
+  ban_reason varchar(255)
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
+
+  Indexes {
+    role
+    is_banned
+  }
 }
 
 Table auth_user_roles {
   id uuid [pk]
   user_id uuid [not null]
-  role varchar(30) [not null]
+  role varchar(50) [not null]
   created_at timestamptz [not null]
 
   Indexes {
     (user_id, role) [unique]
     user_id
+    role
+  }
+}
+
+Table auth_roles {
+  id uuid [pk]
+  name varchar(50) [not null, unique]
+  description varchar(255)
+  is_system boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Indexes {
+    name [unique]
+  }
+}
+
+Table auth_permissions {
+  id uuid [pk]
+  name varchar(100) [not null, unique]
+  category varchar(50) [not null]
+  description varchar(255)
+  created_at timestamptz [not null]
+
+  Indexes {
+    name [unique]
+    category
+  }
+}
+
+Table auth_role_permissions {
+  role_id uuid [not null]
+  permission_id uuid [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (role_id, permission_id) [pk]
+    role_id
+    permission_id
   }
 }
 
@@ -99,6 +154,7 @@ Table auth_email_verifications {
     user_id
     token_hash
     expires_at
+    used_at
   }
 
   Note: 'One active token per user at a time (used_at IS NULL AND expires_at > now). Application enforces uniqueness; old tokens are invalidated on new request.'
@@ -117,12 +173,16 @@ Table auth_password_resets {
     user_id
     token_hash
     expires_at
+    used_at
   }
 
   Note: 'Token is single-use (used_at set on first use). Expires in 15 minutes. Multiple active tokens allowed per user but only latest is shown — old ones are invalidated on new request.'
 }
 
 Ref: auth_users.id < auth_user_roles.user_id
+Ref: auth_roles.name < auth_user_roles.role
+Ref: auth_roles.id < auth_role_permissions.role_id
+Ref: auth_permissions.id < auth_role_permissions.permission_id
 Ref: auth_users.id < auth_refresh_tokens.user_id
 Ref: auth_users.id < auth_blocks.blocker_id
 Ref: auth_users.id < auth_blocks.blocked_id
@@ -133,6 +193,9 @@ Ref: auth_users.id < auth_password_resets.user_id
 TableGroup AUTH_DB {
   auth_users
   auth_user_roles
+  auth_roles
+  auth_permissions
+  auth_role_permissions
   auth_refresh_tokens
   auth_blocks
   auth_notes
@@ -877,3 +940,5 @@ Ref: auth_users.id < notification_device_tokens.user_id
 // 8. Before Flyway, convert only same-DB Ref lines into SQL FK constraints; keep cross-service refs as plain UUID columns.
 // 9. auth_email_verifications: token is SHA-256 hashed before storage; raw token sent via email only once; 24h TTL.
 // 10. auth_password_resets: token is SHA-256 hashed before storage; raw token sent via email only once; 15min TTL; single-use (used_at).
+// 11. auth_users: is_banned, banned_at, ban_reason support Admin ban moderation (V3 migration).
+// 12. Comment replies: Instagram-style flattening (replying to a child comment resolves parent_comment_id to root comment).
