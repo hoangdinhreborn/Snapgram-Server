@@ -2,11 +2,17 @@ server:
   port: 8081
 app:
   admin:
-    bootstrap-secret: ${ADMIN_BOOTSTRAP_SECRET}
+    bootstrap-secret: ${ADMIN_BOOTSTRAP_SECRET:}
+    initial-email: ${ADMIN_INITIAL_EMAIL:}
+    initial-username: ${ADMIN_INITIAL_USERNAME:}
+    initial-password: ${ADMIN_INITIAL_PASSWORD:}
+  cookie:
+    secure: ${COOKIE_SECURE:false}
   jwt:
     secret: ${SNAPGRAM_JWT_SECRET}
     issuer: ${SNAPGRAM_JWT_ISSUER:snapgram-auth}
     access-token-ttl: ${SNAPGRAM_JWT_ACCESS_TOKEN_TTL:15m}
+    admin-access-token-ttl: ${SNAPGRAM_JWT_ADMIN_ACCESS_TOKEN_TTL:30m}
     refresh-token-ttl: ${SNAPGRAM_JWT_REFRESH_TOKEN_TTL:30d}
 spring:
   application:

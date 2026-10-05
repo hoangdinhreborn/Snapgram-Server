@@ -71,6 +71,7 @@ public class AdminDashboardService {
                 .banReason(user.getBanReason())
                 .lastSeenAt(user.getLastSeenAt())
                 .createdAt(user.getCreatedAt())
+                .role(user.getRole() != null ? user.getRole().name() : "USER")
                 .roles(roleService.getUserRoles(user.getId()))
                 .build();
     }

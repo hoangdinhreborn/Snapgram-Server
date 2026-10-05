@@ -28,5 +28,6 @@ public class AdminUserResponse {
     private Instant lastSeenAt;
     private Instant createdAt;
 
+    private String role;
     private Collection<String> roles;
 }

@@ -124,6 +124,17 @@ public class AdminService {
         return getUser(userId);
     }
 
+    @Transactional
+    public AdminUserResponse syncUserRoles(UUID userId, List<String> roles) {
+        if (!userRepository.existsById(userId)) {
+            throw new UserNotFoundException("User not found: " + userId);
+        }
+
+        roleService.syncUserRoles(userId, roles);
+        log.info("Synced roles for user {}: {}", userId, roles);
+        return getUser(userId);
+    }
+
     /**
      * Bootstrap the first admin account using a shared secret.
      */
@@ -157,6 +168,7 @@ public class AdminService {
                 .banReason(user.getBanReason())
                 .lastSeenAt(user.getLastSeenAt())
                 .createdAt(user.getCreatedAt())
+                .role(user.getRole() != null ? user.getRole().name() : "USER")
                 .roles(roleService.getUserRoles(user.getId()))
                 .build();
     }

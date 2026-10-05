@@ -13,9 +13,10 @@ import java.util.UUID;
 
 public final class UserContext {
 
-    public static final String HEADER_USER_ID    = "X-User-Id";
-    public static final String HEADER_USERNAME   = "X-Username";
-    public static final String HEADER_USER_ROLES = "X-User-Roles";
+    public static final String HEADER_USER_ID          = "X-User-Id";
+    public static final String HEADER_USERNAME         = "X-Username";
+    public static final String HEADER_USER_ROLES       = "X-User-Roles";
+    public static final String HEADER_USER_PERMISSIONS = "X-User-Permissions";
 
     private UserContext() {}
 
@@ -81,6 +82,39 @@ public final class UserContext {
      */
     public static boolean isAdmin() {
         return hasRole("ADMIN");
+    }
+
+    /**
+     * Lấy danh sách Permissions từ header X-User-Permissions (ví dụ: ["POST:DELETE", "REPORT:RESOLVE"]).
+     */
+    public static List<String> getUserPermissions() {
+        String permsStr = getRequest().getHeader(HEADER_USER_PERMISSIONS);
+        if (permsStr == null || permsStr.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(permsStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+    }
+
+    /**
+     * Kiểm tra user hiện tại có sở hữu permission cụ thể không (hoặc là ADMIN).
+     */
+    public static boolean hasPermission(String permission) {
+        if (isAdmin()) return true;
+        if (permission == null || permission.isBlank()) return false;
+        return getUserPermissions().stream()
+                .anyMatch(p -> p.equalsIgnoreCase(permission.trim()));
+    }
+
+    /**
+     * Yêu cầu permission cụ thể: nếu không có, ném AccessDeniedException (HTTP 403 Forbidden).
+     */
+    public static void requirePermission(String permission) {
+        if (!hasPermission(permission)) {
+            throw new AccessDeniedException("Access denied: Permission '" + permission + "' required");
+        }
     }
 
     /**

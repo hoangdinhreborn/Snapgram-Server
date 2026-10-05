@@ -27,9 +27,11 @@ public class HeaderSanitizationFilter implements GlobalFilter, Ordered {
             "X-User-Id",
             "X-Username",
             "X-User-Roles",
+            "X-User-Permissions",
             "x-user-id",
             "x-username",
-            "x-user-roles"
+            "x-user-roles",
+            "x-user-permissions"
     );
 
     @Override

@@ -14,4 +14,8 @@ public interface AuthUserRoleRepository extends JpaRepository<AuthUserRole, UUID
     boolean existsByUserIdAndRole(UUID userId, String role);
 
     void deleteByUserIdAndRole(UUID userId, String role);
+
+    void deleteByUserId(UUID userId);
+
+    long countByRole(String role);
 }
