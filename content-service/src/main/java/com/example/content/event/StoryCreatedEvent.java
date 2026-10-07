@@ -2,9 +2,11 @@ package com.example.content.event;
 
 import lombok.*;
 import java.time.Instant;
+import java.util.List;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class StoryCreatedEvent {
+    private String eventId;
     private String storyId;
     private String authorId;
     private String mediaUrl;
@@ -12,4 +14,5 @@ public class StoryCreatedEvent {
     private String visibility;
     private Instant expiresAt;
     private Instant createdAt;
+    private List<String> followerIds;
 }

@@ -7,6 +7,7 @@ import com.example.content.entity.PostStatus;
 import com.example.content.entity.Report;
 import com.example.content.entity.ReportStatus;
 import com.example.content.entity.ReportTargetType;
+import com.example.content.event.EventIds;
 import com.example.content.event.ModerationEvent;
 import com.example.content.exception.ContentNotFoundException;
 import com.example.content.repository.CommentRepository;
@@ -20,6 +21,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -54,11 +56,13 @@ public class ReportService {
 
         try {
             kafkaTemplate.send(TOPIC_MODERATION, saved.getId().toString(), ModerationEvent.builder()
+                    .eventId(EventIds.stableFor(TOPIC_MODERATION, saved.getId().toString(), ReportStatus.PENDING.name()))
                     .reportId(saved.getId().toString())
                     .reporterId(reporterId.toString())
                     .targetType(targetType.name())
                     .targetId(request.getTargetId().toString())
                     .reason(request.getReason())
+                    .status(ReportStatus.PENDING.name())
                     .createdAt(saved.getCreatedAt())
                     .build());
         } catch (Exception e) {
@@ -102,6 +106,16 @@ public class ReportService {
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ContentNotFoundException("Report not found: " + id));
 
+        if (report.getStatus() == ReportStatus.RESOLVED) {
+            return toResponse(report);
+        }
+        if (report.getStatus() == ReportStatus.DISMISSED) {
+            throw new IllegalArgumentException("Dismissed report cannot be resolved");
+        }
+        if (adminId == null) {
+            throw new IllegalArgumentException("adminId is required");
+        }
+
         if (report.getTargetType() == ReportTargetType.POST) {
             postRepository.findById(report.getTargetId()).ifPresent(post -> {
                 post.setStatus(PostStatus.DELETED);
@@ -117,6 +131,21 @@ public class ReportService {
 
         report.setStatus(ReportStatus.RESOLVED);
         Report updated = reportRepository.save(report);
+        try {
+            kafkaTemplate.send(TOPIC_MODERATION, updated.getId().toString(), ModerationEvent.builder()
+                    .eventId(EventIds.stableFor(TOPIC_MODERATION, updated.getId().toString(), ReportStatus.RESOLVED.name()))
+                    .reportId(updated.getId().toString())
+                    .reporterId(updated.getReporterId().toString())
+                    .targetType(updated.getTargetType().name())
+                    .targetId(updated.getTargetId().toString())
+                    .reason(updated.getReason())
+                    .status(ReportStatus.RESOLVED.name())
+                    .moderatorId(adminId.toString())
+                    .createdAt(Instant.now())
+                    .build());
+        } catch (Exception e) {
+            log.warn("Failed to publish resolved moderation event: {}", e.getMessage());
+        }
         log.info("Report {} resolved by admin {}", id, adminId);
         return toResponse(updated);
     }

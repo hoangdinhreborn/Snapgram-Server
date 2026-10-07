@@ -6,6 +6,7 @@ import java.util.List;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class PostCreatedEvent {
+    private String eventId;
     private String postId;
     private String authorId;
     private String contentType;
@@ -15,5 +16,6 @@ public class PostCreatedEvent {
     private List<String> mediaUrls;
     private List<String> hashtags;
     private List<String> mentionedUserIds;
+    private List<String> followerIds;
     private Instant createdAt;
 }

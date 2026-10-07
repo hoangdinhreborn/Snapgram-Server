@@ -21,8 +21,22 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      enable-auto-commit: false
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: record
   jpa:
     open-in-view: false
+
+notification:
+  kafka:
+    retry-count: ${NOTIFICATION_KAFKA_RETRY_COUNT:3}
+  outbox:
+    batch-size: ${NOTIFICATION_OUTBOX_BATCH_SIZE:50}
+    lease-seconds: ${NOTIFICATION_OUTBOX_LEASE_SECONDS:60}
+    max-attempts: ${NOTIFICATION_OUTBOX_MAX_ATTEMPTS:8}
+    poll-interval-ms: ${NOTIFICATION_OUTBOX_POLL_INTERVAL_MS:1000}
 
 management:
   endpoints:

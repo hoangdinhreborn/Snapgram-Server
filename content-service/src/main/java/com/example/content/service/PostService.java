@@ -160,6 +160,7 @@ public class PostService {
                 // Publish mention event
                 try {
                     kafkaTemplate.send(TOPIC_MENTION, mentionedId.toString(), MentionEvent.builder()
+                            .eventId(EventIds.stableFor(TOPIC_MENTION, saved.getId().toString(), mentionedId.toString()))
                             .mentionedUserId(mentionedId.toString())
                             .postId(saved.getId().toString())
                             .authorId(authorId.toString())
@@ -173,7 +174,14 @@ public class PostService {
 
         // 7. Publish post-created event
         try {
+            List<String> followerIds = visibility == Visibility.PUBLIC || visibility == Visibility.FOLLOWERS
+                ? followRepository.findAcceptedFollowerIds(authorId).stream()
+                    .map(UUID::toString)
+                    .toList()
+                : List.of();
+
             kafkaTemplate.send(TOPIC_POST_CREATED, saved.getId().toString(), PostCreatedEvent.builder()
+                    .eventId(saved.getId().toString())
                     .postId(saved.getId().toString())
                     .authorId(authorId.toString())
                     .contentType(type.name())
@@ -183,6 +191,7 @@ public class PostService {
                     .mediaUrls(mediaUrls)
                     .hashtags(hashtags)
                     .mentionedUserIds(mentionedIds)
+                    .followerIds(followerIds)
                     .createdAt(saved.getCreatedAt())
                     .build());
         } catch (Exception e) {
