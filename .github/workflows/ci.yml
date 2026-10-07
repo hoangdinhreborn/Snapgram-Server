@@ -29,7 +29,7 @@ jobs:
           mvn -version
 
       - name: Maven Verify
-        run: mvn -B -ntp verify
+        run: mvn -B -ntp verify -fae
 
   docker-compose-validate:
     name: Validate Docker Compose
