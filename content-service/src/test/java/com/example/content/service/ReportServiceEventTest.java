@@ -6,10 +6,13 @@ import com.example.content.entity.ReportStatus;
 import com.example.content.entity.ReportTargetType;
 import com.example.content.event.EventIds;
 import com.example.content.event.ModerationEvent;
+import com.example.content.repository.CommentRepository;
+import com.example.content.repository.PostRepository;
 import com.example.content.repository.ReportRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -29,11 +32,15 @@ import static org.mockito.Mockito.when;
 class ReportServiceEventTest {
 
     @Mock private ReportRepository reportRepository;
+    @Mock private PostRepository postRepository;
+    @Mock private CommentRepository commentRepository;
     @Mock private KafkaTemplate<String, Object> kafkaTemplate;
+
+    @InjectMocks
+    private ReportService reportService;
 
     @Test
     void reportCreationPublishesStablePendingEvent() {
-        ReportService reportService = new ReportService(reportRepository, kafkaTemplate);
         UUID reportId = UUID.randomUUID();
         UUID reporterId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
@@ -60,7 +67,6 @@ class ReportServiceEventTest {
 
     @Test
     void resolvingReportPublishesResolvedEventWithModerator() {
-        ReportService reportService = new ReportService(reportRepository, kafkaTemplate);
         UUID reportId = UUID.randomUUID();
         UUID reporterId = UUID.randomUUID();
         UUID moderatorId = UUID.randomUUID();
@@ -81,7 +87,6 @@ class ReportServiceEventTest {
 
     @Test
     void resolvingAlreadyResolvedReportDoesNotRepublishEvent() {
-        ReportService reportService = new ReportService(reportRepository, kafkaTemplate);
         UUID reportId = UUID.randomUUID();
         Report resolvedReport = report(reportId, UUID.randomUUID(), ReportStatus.RESOLVED);
         when(reportRepository.findById(reportId)).thenReturn(Optional.of(resolvedReport));
