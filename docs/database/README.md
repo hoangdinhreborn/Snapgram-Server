@@ -32,6 +32,7 @@ Current baseline is `V1`:
 Subsequent migrations `V2+`:
 
 - `auth-service`: `V2__add_email_verification_and_password_reset.sql` (email verification, password reset tokens)
+- `auth-service`: `V3__add_user_banned_fields.sql` (admin user ban, ban timestamp, ban reason, is_banned index)
 - `content-service`: `V2__create_post_media.sql` (supports multiple photos/videos per post — Carousel/Album)
 
 ## Important constraint rules

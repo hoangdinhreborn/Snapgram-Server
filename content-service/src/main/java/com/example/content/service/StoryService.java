@@ -48,12 +48,7 @@ public class StoryService {
             throw new IllegalArgumentException("Invalid mediaType: " + request.getMediaType());
         }
 
-        Visibility visibility;
-        try {
-            visibility = Visibility.valueOf(request.getVisibility() != null ? request.getVisibility() : "FOLLOWERS");
-        } catch (IllegalArgumentException e) {
-            visibility = Visibility.FOLLOWERS;
-        }
+        Visibility visibility = Visibility.parse(request.getVisibility() != null ? request.getVisibility() : "FOLLOWERS");
 
         Story story = new Story();
         story.setAuthorId(authorId);

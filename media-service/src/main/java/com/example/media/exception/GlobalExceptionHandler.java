@@ -29,6 +29,13 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(400, "Bad Request", ex.getMessage()));
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(AccessDeniedException ex) {
+        log.warn("Forbidden: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(403, "Forbidden", ex.getMessage()));
+    }
+
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex) {
         log.warn("Unauthorized: {}", ex.getMessage());

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,10 +24,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final CookieUtils cookieUtils;
 
-    public JwtAuthenticationFilter(JwtService jwtService, TokenBlacklistService tokenBlacklistService) {
+    public JwtAuthenticationFilter(
+            JwtService jwtService,
+            TokenBlacklistService tokenBlacklistService,
+            CookieUtils cookieUtils
+    ) {
         this.jwtService = jwtService;
         this.tokenBlacklistService = tokenBlacklistService;
+        this.cookieUtils = cookieUtils;
     }
 
     @Override
@@ -36,15 +43,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String authorization = request.getHeader("Authorization");
+        String token = resolveToken(request);
 
         // No token → let Spring Security decide (public routes pass, protected routes → 401)
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        if (token == null) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        String token = authorization.substring(7);
 
         try {
             // Reject non-access tokens (refresh / temp tokens) early
@@ -68,11 +73,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            List<SimpleGrantedAuthority> authorities = jwtService.getRoles(token)
-                    .stream()
-                    .map(role -> new SimpleGrantedAuthority(
-                            role.startsWith("ROLE_") ? role : "ROLE_" + role))
-                    .toList();
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            for (String role : jwtService.getRoles(token)) {
+                String clean = role.startsWith("ROLE_") ? role.substring(5) : role;
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + clean));
+                authorities.add(new SimpleGrantedAuthority(clean));
+            }
+            for (String perm : jwtService.getPermissions(token)) {
+                authorities.add(new SimpleGrantedAuthority(perm));
+            }
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(userId, null, authorities);
@@ -89,6 +98,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String resolveToken(HttpServletRequest request) {
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            return authorization.substring(7);
+        }
+
+        String uri = request.getRequestURI();
+        if (uri.startsWith("/api/auth/admin") || uri.startsWith("/api/admin")) {
+            return cookieUtils.extractCookieValue(request, CookieUtils.ADMIN_ACCESS_TOKEN_COOKIE)
+                    .or(() -> cookieUtils.extractCookieValue(request, CookieUtils.ACCESS_TOKEN_COOKIE))
+                    .orElse(null);
+        }
+
+        return cookieUtils.extractCookieValue(request, CookieUtils.ACCESS_TOKEN_COOKIE)
+                .orElse(null);
     }
 
     /** Write a compact 401 JSON response without going through @ControllerAdvice. */

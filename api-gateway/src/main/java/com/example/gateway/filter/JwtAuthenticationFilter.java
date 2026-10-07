@@ -39,14 +39,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final int ORDER = 1;
 
     // Headers inject xuống downstream services
-    public static final String HEADER_USER_ID    = "X-User-Id";
-    public static final String HEADER_USERNAME   = "X-Username";
-    public static final String HEADER_USER_ROLES = "X-User-Roles";
+    public static final String HEADER_USER_ID          = "X-User-Id";
+    public static final String HEADER_USERNAME         = "X-Username";
+    public static final String HEADER_USER_ROLES       = "X-User-Roles";
+    public static final String HEADER_USER_PERMISSIONS = "X-User-Permissions";
 
     // Public paths: không cần JWT
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/register",
             "/api/auth/login",
+            "/api/auth/admin/login",
             "/api/auth/refresh"
     );
 
@@ -72,20 +74,39 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        // Lấy Authorization header
+        // Lấy token từ Authorization header hoặc Cookie
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        String token = null;
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.debug("Missing or invalid Authorization header for path: {}", path);
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else {
+            org.springframework.http.HttpCookie cookie = null;
+            if (path.startsWith("/api/auth/admin") || path.startsWith("/api/admin")) {
+                cookie = exchange.getRequest().getCookies().getFirst("admin_access_token");
+                if (cookie == null) {
+                    cookie = exchange.getRequest().getCookies().getFirst("access_token");
+                }
+            } else {
+                cookie = exchange.getRequest().getCookies().getFirst("access_token");
+            }
+            if (cookie != null) {
+                token = cookie.getValue();
+            }
+        }
+
+        if (token == null || token.isBlank()) {
+            log.debug("Missing or invalid token for path: {}", path);
             return unauthorized(exchange, "Missing or invalid Authorization header");
         }
 
-        String token = authHeader.substring(7);
+        final String jwtToken = token;
+        String bearerHeader = "Bearer " + jwtToken;
 
         // Gọi auth-service verify — reactive chain
         return authWebClient.post()
                 .uri("/api/auth/verify")
-                .header(HttpHeaders.AUTHORIZATION, authHeader)
+                .header(HttpHeaders.AUTHORIZATION, bearerHeader)
                 .retrieve()
                 .bodyToMono(Boolean.class)
                 .onErrorResume(ex -> {
@@ -100,20 +121,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     }
 
                     // Token hợp lệ → decode payload để inject headers
-                    Map<String, Object> payload = jwtPayloadUtil.extractPayload(token);
+                    Map<String, Object> payload = jwtPayloadUtil.extractPayload(jwtToken);
 
-                    String userId   = jwtPayloadUtil.getUserId(payload);
-                    String username = jwtPayloadUtil.getUsername(payload);
-                    String roles    = jwtPayloadUtil.getRolesAsString(payload);
+                    String userId      = jwtPayloadUtil.getUserId(payload);
+                    String username    = jwtPayloadUtil.getUsername(payload);
+                    String roles       = jwtPayloadUtil.getRolesAsString(payload);
+                    String permissions = jwtPayloadUtil.getPermissionsAsString(payload);
 
-                    log.debug("Authenticated userId={}, username={}, roles={}, path={}",
-                            userId, username, roles, path);
+                    log.debug("Authenticated userId={}, username={}, roles={}, permissions={}, path={}",
+                            userId, username, roles, permissions, path);
 
-                    // Mutate request: thêm headers, xoá Authorization gốc để downstream không bị rò token
+                    // Mutate request: ghi đè headers đã xác thực, đảm bảo downstream nhận thông tin tin cậy tuyệt đối
                     ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                            .header(HEADER_USER_ID, userId)
-                            .header(HEADER_USERNAME, username)
-                            .header(HEADER_USER_ROLES, roles)
+                            .headers(httpHeaders -> {
+                                httpHeaders.set(HEADER_USER_ID, userId);
+                                httpHeaders.set(HEADER_USERNAME, username);
+                                httpHeaders.set(HEADER_USER_ROLES, roles);
+                                httpHeaders.set(HEADER_USER_PERMISSIONS, permissions);
+                            })
                             .build();
 
                     return chain.filter(exchange.mutate().request(mutatedRequest).build());

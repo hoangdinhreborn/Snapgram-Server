@@ -127,6 +127,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * AccountBannedException — 403 Forbidden
+     */
+    @ExceptionHandler(AccountBannedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountBanned(AccountBannedException ex) {
+        log.warn("Account banned: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(403, "Forbidden", ex.getMessage()));
+    }
+
+    /**
      * Generic AuthException — 400
      */
     @ExceptionHandler(AuthException.class)

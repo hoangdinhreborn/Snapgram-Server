@@ -4,10 +4,14 @@ import com.example.auth.dto.AuthResponse;
 import com.example.auth.dto.LoginRequest;
 import com.example.auth.dto.RefreshTokenRequest;
 import com.example.auth.dto.RegisterRequest;
+import com.example.auth.dto.UserMeResponse;
 import com.example.auth.entity.AuthRefreshToken;
 import com.example.auth.entity.AuthUser;
+import com.example.auth.entity.Role;
+import com.example.auth.exception.AccountBannedException;
 import com.example.auth.exception.DuplicateUserException;
 import com.example.auth.exception.InvalidCredentialsException;
+import com.example.auth.exception.UserNotFoundException;
 import com.example.auth.exception.TwoFaException;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
@@ -20,9 +24,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -37,6 +41,43 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TokenBlacklistService tokenBlacklistService;
     private final TwoFaService twoFaService;
+
+    private static final int USER_MAX_FAILED_ATTEMPTS = 5;
+    private static final int ADMIN_MAX_FAILED_ATTEMPTS = 3;
+    private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
+
+    private void checkAccountLock(AuthUser user) {
+        if (user.getLockedUntil() != null) {
+            if (Instant.now().isBefore(user.getLockedUntil())) {
+                log.warn("Login blocked: account for user {} is locked until {}", user.getUsername(), user.getLockedUntil());
+                throw new InvalidCredentialsException("Invalid email or password");
+            } else {
+                user.setLockedUntil(null);
+                user.setFailedLoginAttempts(0);
+                userRepository.save(user);
+            }
+        }
+    }
+
+    private void handleFailedLogin(AuthUser user, int maxAttempts) {
+        int attempts = user.getFailedLoginAttempts() + 1;
+        user.setFailedLoginAttempts(attempts);
+        if (attempts >= maxAttempts) {
+            user.setLockedUntil(Instant.now().plus(LOCK_DURATION));
+            log.warn("Account {} locked until {} after {} failed login attempts",
+                    user.getUsername(), user.getLockedUntil(), attempts);
+        }
+        userRepository.save(user);
+        throw new InvalidCredentialsException("Invalid email or password");
+    }
+
+    private void resetFailedAttempts(AuthUser user) {
+        if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
+    }
 
     /**
      * Register new user with USER role
@@ -53,28 +94,28 @@ public class AuthService {
             throw new DuplicateUserException("Email already registered: " + request.getEmail());
         }
 
-        // Create user
+        // Create user with forced USER role
         AuthUser user = new AuthUser();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setDisplayName(request.getDisplayName() != null ? request.getDisplayName() : request.getUsername());
+        user.setRole(Role.USER);
         user.setPrivateAccount(false);
         user.setTwoFaEnabled(false);
         user.setEmailVerified(false);
         user.setShowActivityStatus(true);
 
         userRepository.save(user);
-        log.info("User registered: {} ({})", user.getUsername(), user.getId());
+        log.info("User registered: {} ({}) with role {}", user.getUsername(), user.getId(), user.getRole());
 
         roleService.assignRole(user.getId(), "USER");
 
         return generateTokens(user);
-
     }
 
     /**
-     * Login with email and password
+     * Login with email and password (User login)
      */
     @Transactional
     public AuthResponse login(LoginRequest request) {
@@ -87,11 +128,20 @@ public class AuthService {
                     return new InvalidCredentialsException("Invalid email or password");
                 });
 
+        checkAccountLock(user);
+
         // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             log.warn("Login failed: invalid password for user {}", user.getUsername());
-            throw new InvalidCredentialsException("Invalid email or password");
+            handleFailedLogin(user, USER_MAX_FAILED_ATTEMPTS);
         }
+
+        if (user.isBanned()) {
+            log.warn("Login blocked: user {} is banned", user.getUsername());
+            throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+        }
+
+        resetFailedAttempts(user);
 
         log.info("User logged in: {}", user.getUsername());
 
@@ -107,6 +157,55 @@ public class AuthService {
 
         // Generate tokens
         return generateTokens(user);
+    }
+
+    /**
+     * Admin login with email and password
+     */
+    @Transactional
+    public AuthResponse adminLogin(LoginRequest request) {
+        log.info("Admin login attempt: {}", request.getEmail());
+
+        // Find user
+        AuthUser user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> {
+                    log.warn("Admin login failed: user not found for email {}", request.getEmail());
+                    return new InvalidCredentialsException("Invalid email or password");
+                });
+
+        checkAccountLock(user);
+
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            log.warn("Admin login failed: invalid password for user {}", user.getUsername());
+            handleFailedLogin(user, ADMIN_MAX_FAILED_ATTEMPTS);
+        }
+
+        // Verify ADMIN role - if not ADMIN, reject with generic error
+        if (user.getRole() != Role.ADMIN) {
+            log.warn("Admin login rejected: user {} has role {} (not ADMIN)", user.getUsername(), user.getRole());
+            handleFailedLogin(user, ADMIN_MAX_FAILED_ATTEMPTS);
+        }
+
+        if (user.isBanned()) {
+            log.warn("Admin login blocked: user {} is banned", user.getUsername());
+            throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+        }
+
+        resetFailedAttempts(user);
+
+        log.info("Admin logged in successfully: {}", user.getUsername());
+
+        if (user.isTwoFaEnabled()) {
+            String tempToken = jwtService.generateTempToken(user);
+            log.info("2FA required for admin user {}", user.getUsername());
+            return AuthResponse.builder()
+                    .requiresTwoFa(true)
+                    .tempToken(tempToken)
+                    .build();
+        }
+
+        return generateAdminTokens(user);
     }
 
     /**
@@ -143,6 +242,11 @@ public class AuthService {
             // Get user
             AuthUser user = userRepository.findById(userId)
                     .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+
+            if (user.isBanned()) {
+                log.warn("Refresh token blocked: user {} is banned", user.getUsername());
+                throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+            }
 
             log.info("Token refreshed for user: {}", user.getUsername());
 
@@ -264,6 +368,11 @@ public class AuthService {
         AuthUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
 
+        if (user.isBanned()) {
+            log.warn("2FA login blocked: user {} is banned", user.getUsername());
+            throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+        }
+
         boolean verified = false;
         if (request.getTotpCode() != null && !request.getTotpCode().isBlank()) {
             verified = twoFaService.verifyForLogin(user, request.getTotpCode());
@@ -289,9 +398,10 @@ public class AuthService {
         String displayName = user.getDisplayName();
 
         Collection<String> roles = roleService.getUserRoles(user.getId());
+        Collection<String> permissions = roleService.getUserPermissions(user.getId());
 
         // Generate access token
-        String accessToken = jwtService.generateAccessToken(user, roles);
+        String accessToken = jwtService.generateAccessToken(user, roles, permissions);
         Instant accessTokenExpiration = jwtService.getExpiration(accessToken);
 
         // Generate refresh token
@@ -317,21 +427,83 @@ public class AuthService {
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .expiresIn(expiresIn)
-                .user(buildUserDto(userId, username, email, displayName))
+                .user(buildUserDto(user))
                 .build();
     }
 
-    private AuthResponse.UserDto buildUserDto(UUID userId, String username, String email, String displayName) {
+    /**
+     * Generate access and refresh tokens for ADMIN user
+     */
+    private AuthResponse generateAdminTokens(AuthUser user) {
+        UUID userId = user.getId();
+        Collection<String> roles = roleService.getUserRoles(userId);
+        Collection<String> permissions = roleService.getUserPermissions(userId);
+
+        // Generate admin access token (shorter TTL)
+        String accessToken = jwtService.generateAdminAccessToken(user, roles, permissions);
+        Instant accessTokenExpiration = jwtService.getExpiration(accessToken);
+
+        // Generate refresh token
+        String refreshToken = jwtService.generateRefreshToken(user);
+        String refreshTokenJti = jwtService.getJti(refreshToken);
+        Instant refreshTokenExpiration = jwtService.getExpiration(refreshToken);
+
+        // Store refresh token in database
+        AuthRefreshToken storedToken = new AuthRefreshToken();
+        storedToken.setUserId(user.getId());
+        storedToken.setJti(refreshTokenJti);
+        storedToken.setTokenHash(hashToken(refreshToken));
+        storedToken.setExpiresAt(refreshTokenExpiration);
+        storedToken.setCreatedAt(Instant.now());
+
+        refreshTokenRepository.save(storedToken);
+
+        long expiresIn = (accessTokenExpiration.getEpochSecond() - Instant.now().getEpochSecond());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(expiresIn)
+                .user(buildUserDto(user))
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public UserMeResponse getCurrentUser(UUID userId) {
+        AuthUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
+
+        return UserMeResponse.builder()
+                .id(user.getId().toString())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .displayName(user.getDisplayName())
+                .avatarUrl(user.getAvatarUrl())
+                .role(user.getRole() != null ? user.getRole().name() : "USER")
+                .emailVerified(user.isEmailVerified())
+                .createdAt(user.getCreatedAt())
+                .build();
+    }
+
+    private AuthResponse.UserDto buildUserDto(UUID userId, String username, String email, String displayName, String role) {
         return AuthResponse.UserDto.builder()
                 .id(userId.toString())
                 .username(username)
                 .email(email)
                 .displayName(displayName)
+                .role(role)
                 .build();
     }
 
     private AuthResponse.UserDto buildUserDto(AuthUser user) {
-        return buildUserDto(user.getId(), user.getUsername(), user.getEmail(), user.getDisplayName());
+        return buildUserDto(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getDisplayName(),
+                user.getRole() != null ? user.getRole().name() : "USER"
+        );
     }
 
     /**

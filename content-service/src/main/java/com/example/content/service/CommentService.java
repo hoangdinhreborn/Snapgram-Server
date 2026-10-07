@@ -35,17 +35,21 @@ public class CommentService {
         Post post = postRepository.findByIdAndStatusNot(postId, PostStatus.DELETED)
                 .orElseThrow(() -> new ContentNotFoundException("Post not found"));
 
-        // Validate parent comment belongs to same post
+        // Validate parent comment belongs to same post and resolve to root parent if replying to a child (Instagram style - max depth 1)
+        UUID resolvedParentId = null;
         if (request.getParentCommentId() != null) {
-            commentRepository.findByIdAndPost_Id(request.getParentCommentId(), postId)
+            Comment targetParent = commentRepository.findByIdAndPost_Id(request.getParentCommentId(), postId)
                     .orElseThrow(() -> new ContentNotFoundException("Parent comment not found in this post"));
+            resolvedParentId = targetParent.getParentCommentId() != null
+                    ? targetParent.getParentCommentId()
+                    : targetParent.getId();
         }
 
         Comment comment = new Comment();
         comment.setPost(post);
         comment.setAuthorId(authorId);
         comment.setContent(request.getContent());
-        comment.setParentCommentId(request.getParentCommentId());
+        comment.setParentCommentId(resolvedParentId);
         Comment saved = commentRepository.save(comment);
 
         postRepository.incrementCommentCount(postId);

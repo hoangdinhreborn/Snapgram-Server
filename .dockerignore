@@ -1,40 +1,27 @@
-# Git
 .git
 .gitignore
-.github
 
-# IDE / editor
-.vscode/
 .idea/
+.vscode/
 *.iml
 
-# Build output
-**/target/
-**/build/
-**/out/
-
-# Logs
-**/logs/
-*.log
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Docker
-Dockerfile*
-
-# Local env
 .env
 .env.*
 !.env.example
+*.pem
+*.key
 
-# Documentation / misc
-README.md
+**/target/
+**/build/
+*.class
+*.jar
+*.war
+
+**/logs/
+*.log
+docker-data/
+*.tmp
+
 docs/
-
-# Database / temp data
-**/.tmp/
-**/tmp/
-**/*.sqlite
-**/*.db
+*.md
+*.dbml

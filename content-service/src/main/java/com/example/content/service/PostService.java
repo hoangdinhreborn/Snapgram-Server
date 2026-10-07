@@ -74,12 +74,7 @@ public class PostService {
         }
 
         // 2. Determine Visibility
-        Visibility visibility = Visibility.PUBLIC;
-        if (request.getVisibility() != null && !request.getVisibility().isBlank()) {
-            try {
-                visibility = Visibility.valueOf(request.getVisibility().trim().toUpperCase());
-            } catch (IllegalArgumentException ignored) {}
-        }
+        Visibility visibility = Visibility.parse(request.getVisibility());
 
         // 3. Save Post entity
         Post post = new Post();
@@ -238,9 +233,7 @@ public class PostService {
         if (request.getCaption() != null) post.setCaption(request.getCaption());
         if (request.getTags() != null) post.setTags(request.getTags());
         if (request.getVisibility() != null) {
-            try {
-                post.setVisibility(Visibility.valueOf(request.getVisibility().trim().toUpperCase()));
-            } catch (IllegalArgumentException ignored) {}
+            post.setVisibility(Visibility.parse(request.getVisibility()));
         }
         post.setEditedAt(Instant.now());
         post.setEditCount(post.getEditCount() + 1);
