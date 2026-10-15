@@ -12,6 +12,8 @@ import com.example.auth.repository.AuthUserRepository;
 import com.example.auth.repository.AuthUserRoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,7 @@ public class RbacService {
     private final AuthPermissionRepository permissionRepository;
     private final AuthUserRoleRepository userRoleRepository;
     private final AuthUserRepository userRepository;
+    private final MessageSource messageSource;
 
     /**
      * Get all roles with their permissions and user counts.
@@ -220,7 +223,22 @@ public class RbacService {
                 .id(permission.getId())
                 .name(permission.getName())
                 .category(permission.getCategory())
-                .description(permission.getDescription())
+                .description(resolveDescription(permission))
                 .build();
+    }
+
+    private String resolveDescription(AuthPermission permission) {
+        if (permission == null) {
+            return null;
+        }
+        if (messageSource == null) {
+            return permission.getDescription();
+        }
+        Locale locale = LocaleContextHolder.getLocale();
+        String dotKey = "permission." + permission.getName().replace(':', '.') + ".description";
+        String rawKey = "permission." + permission.getName() + ".description";
+        return messageSource.getMessage(dotKey, null,
+                messageSource.getMessage(rawKey, null, permission.getDescription(), locale),
+                locale);
     }
 }

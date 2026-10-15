@@ -6,11 +6,14 @@ import com.example.auth.entity.AuthUser;
 import com.example.auth.exception.UserNotFoundException;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
+import com.example.auth.repository.AuthUserRoleRepository;
+import com.example.auth.repository.UserSpecifications;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,17 +29,32 @@ public class AdminService {
     private final AuthUserRepository userRepository;
     private final AuthRefreshTokenRepository refreshTokenRepository;
     private final RoleService roleService;
+    private final AuthUserRoleRepository userRoleRepository;
 
     @Value("${app.admin.bootstrap-secret:snapgram-admin-bootstrap-secret}")
     private String bootstrapSecret;
+
+    /**
+     * Get users for admin with search keyword (q), status, role, and pagination.
+     */
+    @Transactional(readOnly = true)
+    public Page<AdminUserResponse> getUsers(String q, String status, String role, Pageable pageable) {
+        List<UUID> roleUserIds = null;
+        if (role != null && !role.isBlank()) {
+            roleUserIds = userRoleRepository.findUserIdsByRole(role.trim());
+        }
+
+        Specification<AuthUser> spec = UserSpecifications.filterBy(q, status, role, roleUserIds);
+        return userRepository.findAll(spec, pageable)
+                .map(this::toAdminUserResponse);
+    }
 
     /**
      * Get all users for admin with pagination.
      */
     @Transactional(readOnly = true)
     public Page<AdminUserResponse> getUsers(Pageable pageable) {
-        return userRepository.findAll(pageable)
-                .map(this::toAdminUserResponse);
+        return getUsers(null, null, null, pageable);
     }
 
     /**

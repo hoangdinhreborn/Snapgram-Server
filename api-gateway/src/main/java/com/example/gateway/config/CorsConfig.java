@@ -39,8 +39,10 @@ public class CorsConfig {
         ));
         config.setExposedHeaders(Arrays.asList(
                 "Authorization",
+                "X-Rate-Limit-Limit",
                 "X-Rate-Limit-Remaining",
-                "X-Rate-Limit-Reset"
+                "X-Rate-Limit-Reset",
+                "Retry-After"
         ));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);

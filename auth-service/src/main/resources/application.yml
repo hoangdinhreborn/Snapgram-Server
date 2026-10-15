@@ -24,6 +24,10 @@ spring:
     timeout-per-shutdown-phase: 20s
   jackson:
     default-property-inclusion: non_null
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/snapgram}
     username: ${DB_USER:snapgram}

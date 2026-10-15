@@ -9,6 +9,7 @@ import com.example.content.entity.ReportStatus;
 import com.example.content.entity.ReportTargetType;
 import com.example.content.event.ModerationEvent;
 import com.example.content.exception.ContentNotFoundException;
+import com.example.content.exception.InvalidStatusTransitionException;
 import com.example.content.repository.CommentRepository;
 import com.example.content.repository.PostRepository;
 import com.example.content.repository.ReportRepository;
@@ -78,6 +79,8 @@ public class ReportService {
             page = reportRepository.findByStatusAndTargetType(status, targetType, pageable);
         } else if (status != null) {
             page = reportRepository.findByStatus(status, pageable);
+        } else if (targetType != null) {
+            page = reportRepository.findByTargetType(targetType, pageable);
         } else {
             page = reportRepository.findAll(pageable);
         }
@@ -99,8 +102,19 @@ public class ReportService {
      */
     @Transactional
     public ReportResponse resolveReport(UUID id, UUID adminId) {
+        if (adminId == null) {
+            throw new IllegalArgumentException("adminId must not be null");
+        }
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ContentNotFoundException("Report not found: " + id));
+
+        if (report.getStatus() == ReportStatus.RESOLVED) {
+            log.info("Report {} is already resolved; idempotent return", id);
+            return toResponse(report);
+        }
+        if (report.getStatus() == ReportStatus.DISMISSED) {
+            throw new InvalidStatusTransitionException("Dismissed report cannot be resolved");
+        }
 
         if (report.getTargetType() == ReportTargetType.POST) {
             postRepository.findById(report.getTargetId()).ifPresent(post -> {
@@ -126,8 +140,19 @@ public class ReportService {
      */
     @Transactional
     public ReportResponse dismissReport(UUID id, UUID adminId) {
+        if (adminId == null) {
+            throw new IllegalArgumentException("adminId must not be null");
+        }
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ContentNotFoundException("Report not found: " + id));
+
+        if (report.getStatus() == ReportStatus.DISMISSED) {
+            log.info("Report {} is already dismissed; idempotent return", id);
+            return toResponse(report);
+        }
+        if (report.getStatus() == ReportStatus.RESOLVED) {
+            throw new InvalidStatusTransitionException("Resolved report cannot be dismissed");
+        }
 
         report.setStatus(ReportStatus.DISMISSED);
         Report updated = reportRepository.save(report);

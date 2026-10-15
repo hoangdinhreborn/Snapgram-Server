@@ -1,5 +1,7 @@
 package com.example.auth.config;
 
+import com.example.auth.dto.ErrorResponse;
+import tools.jackson.databind.ObjectMapper;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;
@@ -24,9 +26,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final String KEY_PREFIX = "auth-service:rate-limit:";
 
     private final ProxyManager<byte[]> proxyManager;
+    private final ObjectMapper objectMapper;
 
     public RateLimitInterceptor(ProxyManager<byte[]> proxyManager) {
+        this(proxyManager, new ObjectMapper());
+    }
+
+    public RateLimitInterceptor(ProxyManager<byte[]> proxyManager, ObjectMapper objectMapper) {
         this.proxyManager = proxyManager;
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
     @Override
@@ -45,7 +53,24 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         } else {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("application/json");
-            response.getWriter().write("{\"error\": \"Rate limit exceeded. Please try again later.\"}");
+            response.setHeader("Retry-After", String.valueOf(WINDOW.getSeconds()));
+            response.setHeader("X-Rate-Limit-Limit", String.valueOf(LIMIT));
+            response.setHeader("X-Rate-Limit-Remaining", "0");
+            response.setHeader("X-Rate-Limit-Reset", String.valueOf(System.currentTimeMillis() / 1000 + WINDOW.getSeconds()));
+
+            ErrorResponse errorResponse = ErrorResponse.of(
+                    HttpStatus.TOO_MANY_REQUESTS.value(),
+                    "RATE_LIMIT_EXCEEDED",
+                    "Too Many Requests",
+                    "Rate limit exceeded. Please try again later."
+            );
+            String json;
+            try {
+                json = objectMapper.writeValueAsString(errorResponse);
+            } catch (Exception e) {
+                json = "{\"status\":429,\"code\":\"RATE_LIMIT_EXCEEDED\",\"error\":\"Too Many Requests\",\"message\":\"Rate limit exceeded. Please try again later.\"}";
+            }
+            response.getWriter().write(json);
             return false;
         }
     }

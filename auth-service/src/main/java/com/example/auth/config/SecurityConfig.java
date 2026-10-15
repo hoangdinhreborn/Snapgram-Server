@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/api/auth/admin/login",
                                 "/api/auth/login/2fa",
                                 "/api/auth/refresh",
+                                "/api/auth/verify",
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
                                 "/api/auth/verify-email",

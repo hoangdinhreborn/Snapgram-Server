@@ -9,6 +9,7 @@ import com.example.auth.entity.AuthRefreshToken;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.entity.Role;
 import com.example.auth.exception.AccountBannedException;
+import com.example.auth.exception.AccountLockedException;
 import com.example.auth.exception.DuplicateUserException;
 import com.example.auth.exception.InvalidCredentialsException;
 import com.example.auth.exception.UserNotFoundException;
@@ -42,15 +43,19 @@ public class AuthService {
     private final TokenBlacklistService tokenBlacklistService;
     private final TwoFaService twoFaService;
 
-    private static final int USER_MAX_FAILED_ATTEMPTS = 5;
+    private static final int USER_MAX_FAILED_ATTEMPTS = 3;
     private static final int ADMIN_MAX_FAILED_ATTEMPTS = 3;
     private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
 
     private void checkAccountLock(AuthUser user) {
         if (user.getLockedUntil() != null) {
             if (Instant.now().isBefore(user.getLockedUntil())) {
-                log.warn("Login blocked: account for user {} is locked until {}", user.getUsername(), user.getLockedUntil());
-                throw new InvalidCredentialsException("Invalid email or password");
+                long retryAfterSeconds = Math.max(1, Duration.between(Instant.now(), user.getLockedUntil()).getSeconds());
+                log.warn("Login blocked: account for user {} is locked until {} ({}s remaining)",
+                        user.getUsername(), user.getLockedUntil(), retryAfterSeconds);
+                throw new AccountLockedException(
+                        "Account is temporarily locked due to too many failed attempts. Please try again later.",
+                        retryAfterSeconds);
             } else {
                 user.setLockedUntil(null);
                 user.setFailedLoginAttempts(0);
@@ -64,8 +69,12 @@ public class AuthService {
         user.setFailedLoginAttempts(attempts);
         if (attempts >= maxAttempts) {
             user.setLockedUntil(Instant.now().plus(LOCK_DURATION));
+            userRepository.save(user);
             log.warn("Account {} locked until {} after {} failed login attempts",
                     user.getUsername(), user.getLockedUntil(), attempts);
+            throw new AccountLockedException(
+                    "Account is temporarily locked due to too many failed attempts. Please try again later.",
+                    LOCK_DURATION.toSeconds());
         }
         userRepository.save(user);
         throw new InvalidCredentialsException("Invalid email or password");

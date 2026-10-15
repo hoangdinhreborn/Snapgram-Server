@@ -1,5 +1,7 @@
 package com.example.gateway.filter;
 
+import com.example.gateway.dto.ErrorResponse;
+import tools.jackson.databind.ObjectMapper;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;
@@ -11,6 +13,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -37,15 +40,18 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     private final ProxyManager<byte[]> proxyManager;
     private final int capacity;
     private final long refillDurationSeconds;
+    private final ObjectMapper objectMapper;
 
     public RateLimitFilter(
             ProxyManager<byte[]> proxyManager,
             @Value("${app.rate-limit.capacity:100}") int capacity,
-            @Value("${app.rate-limit.refill-duration-seconds:60}") long refillDurationSeconds
+            @Value("${app.rate-limit.refill-duration-seconds:60}") long refillDurationSeconds,
+            ObjectMapper objectMapper
     ) {
         this.proxyManager = proxyManager;
         this.capacity = capacity;
         this.refillDurationSeconds = refillDurationSeconds;
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
     @Override
@@ -62,7 +68,12 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
         if (bucket.tryConsume(1)) {
             exchange.getResponse().getHeaders()
+                    .add("X-Rate-Limit-Limit", String.valueOf(capacity));
+            exchange.getResponse().getHeaders()
                     .add("X-Rate-Limit-Remaining", String.valueOf(bucket.getAvailableTokens()));
+            exchange.getResponse().getHeaders()
+                    .add("X-Rate-Limit-Reset",
+                            String.valueOf(System.currentTimeMillis() / 1000 + refillDurationSeconds));
             return chain.filter(exchange);
         } else {
             log.warn("Rate limit exceeded for IP: {}", clientIp);
@@ -97,11 +108,30 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders()
+                .add("X-Rate-Limit-Limit", String.valueOf(capacity));
+        exchange.getResponse().getHeaders()
+                .add("X-Rate-Limit-Remaining", "0");
+        exchange.getResponse().getHeaders()
                 .add("X-Rate-Limit-Reset",
                         String.valueOf(System.currentTimeMillis() / 1000 + refillDurationSeconds));
-        String body = "{\"error\": \"Rate limit exceeded. Please try again later.\"}";
+        exchange.getResponse().getHeaders()
+                .set(HttpHeaders.RETRY_AFTER, String.valueOf(refillDurationSeconds));
+
+        ErrorResponse errorResponse = ErrorResponse.of(
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                "RATE_LIMIT_EXCEEDED",
+                "Too Many Requests",
+                "Rate limit exceeded. Please try again later."
+        );
+        byte[] bytes;
+        try {
+            bytes = objectMapper.writeValueAsBytes(errorResponse);
+        } catch (Exception e) {
+            bytes = "{\"status\":429,\"code\":\"RATE_LIMIT_EXCEEDED\",\"error\":\"Too Many Requests\",\"message\":\"Rate limit exceeded. Please try again later.\"}"
+                    .getBytes(StandardCharsets.UTF_8);
+        }
         DataBuffer buffer = exchange.getResponse().bufferFactory()
-                .wrap(body.getBytes(StandardCharsets.UTF_8));
+                .wrap(bytes);
         return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 }
