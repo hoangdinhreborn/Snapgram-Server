@@ -13,13 +13,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -27,11 +30,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserService {
 
+    private static final String TOPIC_USER_EVENTS = "user.events";
+
     private final AuthUserRepository userRepository;
     private final AuthBlockRepository blockRepository;
     private final AuthNoteRepository noteRepository;
     private final AuthRefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     // ─────────────────────────────────────────────────────────────
     // Profile
@@ -99,6 +105,18 @@ public class UserService {
         user.setPrivateAccount(request.getPrivateAccount());
         userRepository.save(user);
         log.info("Privacy set to {} for user {}", request.getPrivateAccount(), userId);
+
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("eventType", "PRIVACY_CHANGED");
+            payload.put("userId", userId.toString());
+            payload.put("isPrivate", request.getPrivateAccount());
+            payload.put("timestamp", Instant.now().toString());
+            kafkaTemplate.send(TOPIC_USER_EVENTS, userId.toString(), payload);
+        } catch (Exception e) {
+            log.warn("Failed to publish user privacy event: {}", e.getMessage());
+        }
+
         return toFullProfile(user);
     }
 
@@ -165,6 +183,17 @@ public class UserService {
             block.setBlockedId(targetId);
             blockRepository.save(block);
             log.info("User {} blocked user {}", blockerId, targetId);
+
+            try {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("eventType", "USER_BLOCKED");
+                payload.put("blockerId", blockerId.toString());
+                payload.put("blockedId", targetId.toString());
+                payload.put("timestamp", Instant.now().toString());
+                kafkaTemplate.send(TOPIC_USER_EVENTS, blockerId.toString(), payload);
+            } catch (Exception e) {
+                log.warn("Failed to publish user blocked event: {}", e.getMessage());
+            }
         }
     }
 
@@ -175,6 +204,17 @@ public class UserService {
         }
         blockRepository.deleteByBlockerIdAndBlockedId(blockerId, targetId);
         log.info("User {} unblocked user {}", blockerId, targetId);
+
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("eventType", "USER_UNBLOCKED");
+            payload.put("blockerId", blockerId.toString());
+            payload.put("blockedId", targetId.toString());
+            payload.put("timestamp", Instant.now().toString());
+            kafkaTemplate.send(TOPIC_USER_EVENTS, blockerId.toString(), payload);
+        } catch (Exception e) {
+            log.warn("Failed to publish user unblocked event: {}", e.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)

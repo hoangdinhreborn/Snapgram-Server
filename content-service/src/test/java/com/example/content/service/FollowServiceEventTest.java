@@ -51,4 +51,56 @@ class FollowServiceEventTest {
         assertThat(eventCaptor.getValue().getEventId()).isEqualTo(relationshipId.toString());
         assertThat(eventCaptor.getValue().getStatus()).isEqualTo("ACCEPTED");
     }
+
+    @Test
+    void unfollowPublishesUnfollowEvent() {
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        UUID followerId = UUID.randomUUID();
+        UUID followingId = UUID.randomUUID();
+        UUID relationshipId = UUID.randomUUID();
+
+        Follow follow = new Follow();
+        follow.setId(relationshipId);
+        follow.setFollowerId(followerId);
+        follow.setFollowingId(followingId);
+
+        when(followRepository.findByFollowerIdAndFollowingId(followerId, followingId)).thenReturn(Optional.of(follow));
+
+        followService.unfollow(followerId, followingId);
+
+        verify(followRepository).delete(follow);
+
+        ArgumentCaptor<FollowEvent> eventCaptor = ArgumentCaptor.forClass(FollowEvent.class);
+        verify(kafkaTemplate).send(eq("follow.events"), eq(followerId.toString()), eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventId()).isEqualTo(relationshipId.toString());
+        assertThat(eventCaptor.getValue().getFollowerId()).isEqualTo(followerId.toString());
+        assertThat(eventCaptor.getValue().getFollowingId()).isEqualTo(followingId.toString());
+        assertThat(eventCaptor.getValue().getStatus()).isEqualTo("UNFOLLOW");
+    }
+
+    @Test
+    void rejectRequestPublishesRejectedEvent() {
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        UUID followerId = UUID.randomUUID();
+        UUID followingId = UUID.randomUUID();
+        UUID followId = UUID.randomUUID();
+
+        Follow follow = new Follow();
+        follow.setId(followId);
+        follow.setFollowerId(followerId);
+        follow.setFollowingId(followingId);
+
+        when(followRepository.findById(followId)).thenReturn(Optional.of(follow));
+
+        followService.rejectRequest(followId, followingId);
+
+        verify(followRepository).delete(follow);
+
+        ArgumentCaptor<FollowEvent> eventCaptor = ArgumentCaptor.forClass(FollowEvent.class);
+        verify(kafkaTemplate).send(eq("follow.events"), eq(followerId.toString()), eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getEventId()).isEqualTo(followId.toString());
+        assertThat(eventCaptor.getValue().getFollowerId()).isEqualTo(followerId.toString());
+        assertThat(eventCaptor.getValue().getFollowingId()).isEqualTo(followingId.toString());
+        assertThat(eventCaptor.getValue().getStatus()).isEqualTo("REJECTED");
+    }
 }
