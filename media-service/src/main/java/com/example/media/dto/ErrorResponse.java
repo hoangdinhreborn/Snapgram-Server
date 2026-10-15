@@ -13,6 +13,7 @@ import java.util.List;
 public class ErrorResponse {
 
     private int status;
+    private String code;
     private String error;
     private String message;
     private List<FieldError> errors;
@@ -26,8 +27,13 @@ public class ErrorResponse {
     }
 
     public static ErrorResponse of(int status, String error, String message) {
+        return of(status, null, error, message);
+    }
+
+    public static ErrorResponse of(int status, String code, String error, String message) {
         return ErrorResponse.builder()
                 .status(status)
+                .code(code)
                 .error(error)
                 .message(message)
                 .timestamp(Instant.now())

@@ -179,8 +179,9 @@ public class AuthController {
 
     /** POST /api/auth/verify */
     @PostMapping("/verify")
-    public ResponseEntity<Boolean> verify(@RequestHeader("Authorization") String authorization) {
-        if (!authorization.startsWith("Bearer ")) return ResponseEntity.ok(false);
+    public ResponseEntity<Boolean> verify(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) return ResponseEntity.ok(false);
         return ResponseEntity.ok(authService.verifyToken(authorization.substring(7)));
     }
 

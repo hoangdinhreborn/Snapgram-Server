@@ -67,6 +67,7 @@ public class FollowService {
         Follow follow = followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
                 .orElseThrow(() -> new ContentNotFoundException("Follow relationship not found"));
         followRepository.delete(follow);
+        publishFollowStatusEvent(follow.getId(), followerId, followingId, "UNFOLLOW");
     }
 
     @Transactional
@@ -96,6 +97,7 @@ public class FollowService {
             throw new AccessDeniedException("This is not your follow request");
         }
         followRepository.delete(follow);
+        publishFollowStatusEvent(follow.getId(), follow.getFollowerId(), followingId, "REJECTED");
     }
 
     @Transactional(readOnly = true)
@@ -117,16 +119,20 @@ public class FollowService {
     }
 
     private void publishFollowEvent(Follow follow) {
+        publishFollowStatusEvent(follow.getId(), follow.getFollowerId(), follow.getFollowingId(), follow.getStatus().name());
+    }
+
+    private void publishFollowStatusEvent(UUID followId, UUID followerId, UUID followingId, String status) {
         try {
-            kafkaTemplate.send(TOPIC_FOLLOW, follow.getFollowerId().toString(), FollowEvent.builder()
-                    .eventId(follow.getId().toString())
-                    .followerId(follow.getFollowerId().toString())
-                    .followingId(follow.getFollowingId().toString())
-                    .status(follow.getStatus().name())
-                    .createdAt(follow.getCreatedAt())
+            kafkaTemplate.send(TOPIC_FOLLOW, followerId.toString(), FollowEvent.builder()
+                    .eventId(followId != null ? followId.toString() : UUID.randomUUID().toString())
+                    .followerId(followerId.toString())
+                    .followingId(followingId.toString())
+                    .status(status)
+                    .createdAt(Instant.now())
                     .build());
         } catch (Exception e) {
-            log.warn("Failed to publish follow event: {}", e.getMessage());
+            log.warn("Failed to publish follow {} event: {}", status, e.getMessage());
         }
     }
 

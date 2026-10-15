@@ -37,6 +37,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return "/api/auth/verify".equals(path);
+    }
+
+    @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
@@ -114,6 +120,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         return cookieUtils.extractCookieValue(request, CookieUtils.ACCESS_TOKEN_COOKIE)
+                .or(() -> cookieUtils.extractCookieValue(request, CookieUtils.ADMIN_ACCESS_TOKEN_COOKIE))
                 .orElse(null);
     }
 
@@ -122,7 +129,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write("""
-                {"status":401,"error":"Unauthorized","message":"%s"}
+                {"status":401,"code":"UNAUTHORIZED","error":"Unauthorized","message":"%s"}
                 """.formatted(message));
     }
 }

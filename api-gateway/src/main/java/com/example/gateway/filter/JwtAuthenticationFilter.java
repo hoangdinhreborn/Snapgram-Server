@@ -1,6 +1,8 @@
 package com.example.gateway.filter;
 
+import com.example.gateway.dto.ErrorResponse;
 import com.example.gateway.util.JwtPayloadUtil;
+import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -12,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -54,10 +57,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private final WebClient authWebClient;
     private final JwtPayloadUtil jwtPayloadUtil;
+    private final ObjectMapper objectMapper;
 
-    public JwtAuthenticationFilter(WebClient authWebClient, JwtPayloadUtil jwtPayloadUtil) {
+    public JwtAuthenticationFilter(WebClient authWebClient, JwtPayloadUtil jwtPayloadUtil, ObjectMapper objectMapper) {
         this.authWebClient = authWebClient;
         this.jwtPayloadUtil = jwtPayloadUtil;
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
     @Override
@@ -89,6 +94,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 }
             } else {
                 cookie = exchange.getRequest().getCookies().getFirst("access_token");
+                if (cookie == null) {
+                    cookie = exchange.getRequest().getCookies().getFirst("admin_access_token");
+                }
             }
             if (cookie != null) {
                 token = cookie.getValue();
@@ -109,6 +117,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .header(HttpHeaders.AUTHORIZATION, bearerHeader)
                 .retrieve()
                 .bodyToMono(Boolean.class)
+                .onErrorResume(WebClientResponseException.class, ex -> {
+                    if (ex.getStatusCode().is4xxClientError()) {
+                        log.debug("Auth-service rejected token with status {}: {}", ex.getStatusCode(), ex.getMessage());
+                        return Mono.just(false);
+                    }
+                    log.error("Auth-service returned error status {}: {}", ex.getStatusCode(), ex.getMessage());
+                    return Mono.empty();
+                })
                 .onErrorResume(ex -> {
                     log.error("Auth service unavailable: {}", ex.getMessage());
                     return Mono.empty(); // empty → xử lý ở switchIfEmpty
@@ -159,18 +175,43 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        String body = "{\"error\": \"" + message + "\"}";
+        exchange.getResponse().getHeaders().set(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"invalid_token\"");
+        ErrorResponse errorResponse = ErrorResponse.of(
+                HttpStatus.UNAUTHORIZED.value(),
+                "UNAUTHORIZED",
+                "Unauthorized",
+                message
+        );
+        byte[] bytes;
+        try {
+            bytes = objectMapper.writeValueAsBytes(errorResponse);
+        } catch (Exception e) {
+            bytes = ("{\"status\":401,\"code\":\"UNAUTHORIZED\",\"error\":\"Unauthorized\",\"message\":\"" + message + "\"}")
+                    .getBytes(StandardCharsets.UTF_8);
+        }
         DataBuffer buffer = exchange.getResponse().bufferFactory()
-                .wrap(body.getBytes(StandardCharsets.UTF_8));
+                .wrap(bytes);
         return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 
     private Mono<Void> serviceUnavailable(ServerWebExchange exchange) {
         exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        String body = "{\"error\": \"Authentication service unavailable\"}";
+        ErrorResponse errorResponse = ErrorResponse.of(
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "SERVICE_UNAVAILABLE",
+                "Service Unavailable",
+                "Authentication service unavailable"
+        );
+        byte[] bytes;
+        try {
+            bytes = objectMapper.writeValueAsBytes(errorResponse);
+        } catch (Exception e) {
+            bytes = "{\"status\":503,\"code\":\"SERVICE_UNAVAILABLE\",\"error\":\"Service Unavailable\",\"message\":\"Authentication service unavailable\"}"
+                    .getBytes(StandardCharsets.UTF_8);
+        }
         DataBuffer buffer = exchange.getResponse().bufferFactory()
-                .wrap(body.getBytes(StandardCharsets.UTF_8));
+                .wrap(bytes);
         return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 }

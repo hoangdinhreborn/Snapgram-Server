@@ -2,6 +2,7 @@ package com.example.auth.exception;
 
 import com.example.auth.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -10,8 +11,11 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j
@@ -31,6 +35,7 @@ public class GlobalExceptionHandler {
 
         ErrorResponse body = ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
+                .code("VALIDATION_FAILED")
                 .error("Validation Failed")
                 .message("Request contains invalid fields")
                 .errors(fieldErrors)
@@ -48,7 +53,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
         log.warn("Malformed request body: {}", ex.getMessage());
         return ResponseEntity.badRequest()
-                .body(ErrorResponse.of(400, "Bad Request", "Malformed or missing request body"));
+                .body(ErrorResponse.of(400, "MALFORMED_REQUEST", "Bad Request", "Malformed or missing request body"));
     }
 
     /**
@@ -58,7 +63,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
         log.warn("Missing header: {}", ex.getHeaderName());
         return ResponseEntity.badRequest()
-                .body(ErrorResponse.of(400, "Bad Request", "Missing required header: " + ex.getHeaderName()));
+                .body(ErrorResponse.of(400, "MISSING_HEADER", "Bad Request", "Missing required header: " + ex.getHeaderName()));
     }
 
     /**
@@ -68,7 +73,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex) {
         log.warn("User not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(404, "Not Found", ex.getMessage()));
+                .body(ErrorResponse.of(404, "USER_NOT_FOUND", "Not Found", ex.getMessage()));
     }
 
     /**
@@ -78,7 +83,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTwoFa(TwoFaException ex) {
         log.warn("2FA error: {}", ex.getMessage());
         return ResponseEntity.badRequest()
-                .body(ErrorResponse.of(400, "Bad Request", ex.getMessage()));
+                .body(ErrorResponse.of(400, "TWO_FA_INVALID", "Bad Request", ex.getMessage()));
     }
 
     /**
@@ -96,6 +101,7 @@ public class GlobalExceptionHandler {
 
         ErrorResponse body = ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
+                .code("VALIDATION_FAILED")
                 .error("Validation Failed")
                 .message("Request contains invalid parameters")
                 .errors(fieldErrors)
@@ -113,7 +119,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDuplicate(DuplicateUserException ex) {
         log.warn("Duplicate user: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.of(409, "Conflict", ex.getMessage()));
+                .body(ErrorResponse.of(409, "DUPLICATE_USER", "Conflict", ex.getMessage()));
     }
 
     /**
@@ -123,7 +129,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
         log.warn("Invalid credentials: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ErrorResponse.of(401, "Unauthorized", ex.getMessage()));
+                .body(ErrorResponse.of(401, "INVALID_CREDENTIALS", "Unauthorized", ex.getMessage()));
+    }
+
+    /**
+     * AccountLockedException — 423 Locked
+     */
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountLocked(AccountLockedException ex) {
+        log.warn("Account locked: {}, retry after: {}s", ex.getMessage(), ex.getRetryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.LOCKED)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(ErrorResponse.of(HttpStatus.LOCKED.value(), "ACCOUNT_LOCKED", "Locked", ex.getMessage()));
     }
 
     /**
@@ -133,7 +150,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAccountBanned(AccountBannedException ex) {
         log.warn("Account banned: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ErrorResponse.of(403, "Forbidden", ex.getMessage()));
+                .body(ErrorResponse.of(403, "USER_BANNED", "Forbidden", ex.getMessage()));
     }
 
     /**
@@ -143,7 +160,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAuth(AuthException ex) {
         log.warn("Auth error: {}", ex.getMessage());
         return ResponseEntity.badRequest()
-                .body(ErrorResponse.of(400, "Bad Request", ex.getMessage()));
+                .body(ErrorResponse.of(400, "AUTH_ERROR", "Bad Request", ex.getMessage()));
     }
 
     /**
@@ -153,7 +170,29 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArg(IllegalArgumentException ex) {
         log.warn("Illegal argument: {}", ex.getMessage());
         return ResponseEntity.badRequest()
-                .body(ErrorResponse.of(400, "Bad Request", ex.getMessage()));
+                .body(ErrorResponse.of(400, "BAD_REQUEST", "Bad Request", ex.getMessage()));
+    }
+
+    /**
+     * Parameter type mismatch (e.g. invalid enum or type in query params) — 400
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String name = ex.getName();
+        Class<?> requiredType = ex.getRequiredType();
+        String message;
+        if (requiredType != null && requiredType.isEnum()) {
+            String allowedValues = Arrays.stream(requiredType.getEnumConstants())
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", "));
+            message = String.format("Invalid value '%s' for parameter '%s'. Allowed values: [%s]",
+                    ex.getValue(), name, allowedValues);
+        } else {
+            message = String.format("Invalid value '%s' for parameter '%s'", ex.getValue(), name);
+        }
+        log.warn("Parameter type mismatch: {}", message);
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of(400, "BAD_REQUEST", "Bad Request", message));
     }
 
     /**
@@ -163,6 +202,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.of(500, "Internal Server Error", "An unexpected error occurred"));
+                .body(ErrorResponse.of(500, "INTERNAL_SERVER_ERROR", "Internal Server Error", "An unexpected error occurred"));
     }
 }
