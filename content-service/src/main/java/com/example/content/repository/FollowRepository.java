@@ -26,6 +26,10 @@ public interface FollowRepository extends JpaRepository<Follow, UUID> {
     @Query("SELECT f.followingId FROM Follow f WHERE f.followerId = :followerId AND f.status = 'ACCEPTED'")
     List<UUID> findAcceptedFollowingIds(@Param("followerId") UUID followerId);
 
+    /** IDs of accepted followers for a user */
+    @Query("SELECT f.followerId FROM Follow f WHERE f.followingId = :followingId AND f.status = 'ACCEPTED'")
+    List<UUID> findAcceptedFollowerIds(@Param("followingId") UUID followingId);
+
     /** Pending follow requests TO a specific user (ordered newest first) */
     Page<Follow> findByFollowingIdAndStatusOrderByCreatedAtDesc(UUID followingId, FollowStatus status, Pageable pageable);
 }

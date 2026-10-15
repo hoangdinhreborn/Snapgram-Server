@@ -28,6 +28,14 @@ TOPICS=(
   "mention.events:3"
   "moderation.events:3"
   "notification.events:3"
+  "content.post-created.DLT:3"
+  "content.story-created.DLT:3"
+  "content.interaction.DLT:3"
+  "follow.events.DLT:3"
+  "mention.events.DLT:3"
+  "chat.messages.DLT:6"
+  "moderation.events.DLT:3"
+  "call.events.DLT:3"
   "media.uploaded:3"
 )
 

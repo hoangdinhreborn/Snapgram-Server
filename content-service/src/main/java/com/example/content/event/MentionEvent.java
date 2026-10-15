@@ -5,6 +5,7 @@ import java.time.Instant;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class MentionEvent {
+    private String eventId;
     private String mentionedUserId;
     private String postId;
     private String authorId;

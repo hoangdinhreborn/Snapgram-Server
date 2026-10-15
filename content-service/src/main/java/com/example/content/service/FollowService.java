@@ -119,6 +119,7 @@ public class FollowService {
     private void publishFollowEvent(Follow follow) {
         try {
             kafkaTemplate.send(TOPIC_FOLLOW, follow.getFollowerId().toString(), FollowEvent.builder()
+                    .eventId(follow.getId().toString())
                     .followerId(follow.getFollowerId().toString())
                     .followingId(follow.getFollowingId().toString())
                     .status(follow.getStatus().name())
