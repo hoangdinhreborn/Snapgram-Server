@@ -7,6 +7,7 @@ import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.Refill;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -28,6 +29,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final ProxyManager<byte[]> proxyManager;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public RateLimitInterceptor(ProxyManager<byte[]> proxyManager) {
         this(proxyManager, new ObjectMapper());
     }
