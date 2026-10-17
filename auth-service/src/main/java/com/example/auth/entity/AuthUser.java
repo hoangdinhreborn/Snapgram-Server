@@ -90,6 +90,12 @@ public class AuthUser {
     @Column(name = "ban_reason", length = 255)
     private String banReason;
 
+    @Column(name = "is_verified", nullable = false)
+    private boolean verified = false;
+
+    @Column(name = "verified_until")
+    private Instant verifiedUntil;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

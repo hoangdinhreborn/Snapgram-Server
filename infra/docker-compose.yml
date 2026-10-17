@@ -172,6 +172,22 @@ services:
       timeout: 5s
       retries: 12
 
+  postgres-payment:
+    image: postgres:17
+    container_name: snapgram-postgres-payment
+    restart: unless-stopped
+    ports:
+      - "5439:5432"
+    environment:
+      <<: *pg-env
+    volumes:
+      - postgres_payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snapgram"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   minio:
     image: cgr.dev/chainguard/minio:latest
     container_name: snapgram-minio
@@ -452,6 +468,7 @@ services:
       CHATBOT_SERVICE_URL: http://chatbot-service:8082
       RECOMMENDER_SERVICE_URL: http://recommender-service:8090
       MEDIA_SERVICE_URL: http://media-service:8085
+      PAYMENT_SERVICE_URL: http://payment-service:8087
     depends_on:
       redis:
         condition: service_healthy
@@ -459,6 +476,34 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 60s
+
+  payment-service:
+    build:
+      context: ..
+      dockerfile: payment-service/Dockerfile
+    image: snapgram/payment-service:latest
+    container_name: snapgram-payment-service
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    env_file:
+      - ../.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres-payment:5432/snapgram
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # VNPAY_* lay tu env_file ../.env — khong khai bao ${...} o day
+      # vi compose noi suy tu shell (trong) va de len env_file.
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8087/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s
       timeout: 10s
       retries: 8
@@ -474,4 +519,5 @@ volumes:
   postgres_recommender_data:
   postgres_media_data:
   postgres_notification_data:
+  postgres_payment_data:
   minio_data:

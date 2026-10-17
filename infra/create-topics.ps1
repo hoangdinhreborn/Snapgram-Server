@@ -28,6 +28,7 @@ $topics = @(
     @{ Name = "mention.events"; Partitions = 3 },
     @{ Name = "moderation.events"; Partitions = 3 },
     @{ Name = "notification.events"; Partitions = 3 },
+    @{ Name = "payment.completed"; Partitions = 3 },
     @{ Name = "content.post-created.DLT"; Partitions = 3 },
     @{ Name = "content.story-created.DLT"; Partitions = 3 },
     @{ Name = "content.interaction.DLT"; Partitions = 3 },
@@ -36,6 +37,7 @@ $topics = @(
     @{ Name = "chat.messages.DLT"; Partitions = 6 },
     @{ Name = "moderation.events.DLT"; Partitions = 3 },
     @{ Name = "call.events.DLT"; Partitions = 3 },
+    @{ Name = "payment.completed.DLT"; Partitions = 3 },
     @{ Name = "media.uploaded"; Partitions = 3 }
 )
 
