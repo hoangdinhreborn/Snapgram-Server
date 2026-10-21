@@ -1,5 +1,7 @@
 package com.example.payment.controller;
 
+import com.example.payment.adapter.momo.MomoPaymentGateway;
+import com.example.payment.adapter.vnpay.VnpayPaymentGateway;
 import com.example.payment.dto.CreatePaymentRequest;
 import com.example.payment.dto.CreatePaymentResponse;
 import com.example.payment.dto.PaymentOrderResponse;
@@ -24,12 +26,25 @@ public class PaymentController {
 
     /** POST /api/payments/vnpay/create — amount lay tu server theo productCode. */
     @PostMapping("/vnpay/create")
-    public ResponseEntity<CreatePaymentResponse> create(
+    public ResponseEntity<CreatePaymentResponse> createVnpay(
             @Valid @RequestBody CreatePaymentRequest request,
             HttpServletRequest httpRequest) {
+        return create(VnpayPaymentGateway.PROVIDER, request, httpRequest);
+    }
+
+    /** POST /api/payments/momo/create — cung flow, doi gateway sang MoMo. */
+    @PostMapping("/momo/create")
+    public ResponseEntity<CreatePaymentResponse> createMomo(
+            @Valid @RequestBody CreatePaymentRequest request,
+            HttpServletRequest httpRequest) {
+        return create(MomoPaymentGateway.PROVIDER, request, httpRequest);
+    }
+
+    private ResponseEntity<CreatePaymentResponse> create(
+            String provider, CreatePaymentRequest request, HttpServletRequest httpRequest) {
         String clientIp = resolveClientIp(httpRequest);
-        CreatePaymentResponse response =
-                paymentService.createPayment(UserContext.getCurrentUserId(), request.productCode(), clientIp);
+        CreatePaymentResponse response = paymentService.createPayment(
+                UserContext.getCurrentUserId(), request.productCode(), clientIp, provider);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

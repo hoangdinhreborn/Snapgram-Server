@@ -495,7 +495,7 @@ services:
     environment:
       DB_URL: jdbc:postgresql://postgres-payment:5432/snapgram
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # VNPAY_* lay tu env_file ../.env — khong khai bao ${...} o day
+      # VNPAY_*/MOMO_* lay tu env_file ../.env — khong khai bao ${...} o day
       # vi compose noi suy tu shell (trong) va de len env_file.
     depends_on:
       postgres-payment:

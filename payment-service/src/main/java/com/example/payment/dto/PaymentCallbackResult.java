@@ -8,9 +8,9 @@ public record PaymentCallbackResult(
         String orderId,
         long amount,
         String responseCode,
+        String transactionStatus,
         String transactionNo,
         String bankCode,
-        String tmnCode,
         Instant payDate
 ) {
     public static PaymentCallbackResult invalid(String error) {
@@ -18,13 +18,21 @@ public record PaymentCallbackResult(
     }
 
     public static PaymentCallbackResult valid(String orderId, long amount, String responseCode,
-                                              String transactionNo, String bankCode, String tmnCode,
-                                              Instant payDate) {
+                                              String transactionStatus, String transactionNo,
+                                              String bankCode, Instant payDate) {
         return new PaymentCallbackResult(true, null, orderId, amount, responseCode,
-                transactionNo, bankCode, tmnCode, payDate);
+                transactionStatus, transactionNo, bankCode, payDate);
     }
 
+    /**
+     * VNPay: thanh cong chi khi ca vnp_ResponseCode va vnp_TransactionStatus deu = 00.
+     * Provider khong gui transactionStatus (MoMo) -> chi xet responseCode.
+     */
     public boolean isSuccessCode() {
-        return "00".equals(responseCode);
+        if (!"00".equals(responseCode)) {
+            return false;
+        }
+        return transactionStatus == null || transactionStatus.isBlank()
+                || "00".equals(transactionStatus);
     }
 }

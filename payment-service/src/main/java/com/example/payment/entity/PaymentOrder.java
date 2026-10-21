@@ -41,17 +41,16 @@ public class PaymentOrder {
     @Column(nullable = false, length = 16)
     private PaymentStatus status = PaymentStatus.PENDING;
 
-    @Column(name = "vnpay_transaction_no", length = 64)
-    private String vnpayTransactionNo;
+    /** Ma tra ve cua provider (VNPay vnp_ResponseCode / MoMo resultCode). */
+    @Column(name = "provider_response_code", length = 8)
+    private String providerResponseCode;
 
-    @Column(name = "vnpay_response_code", length = 8)
-    private String vnpayResponseCode;
+    /** Kenh thanh toan: VNPay = bankCode (NCB...), MoMo = payType (web/qr...). */
+    @Column(name = "provider_channel", length = 32)
+    private String providerChannel;
 
-    @Column(name = "vnpay_bank_code", length = 32)
-    private String vnpayBankCode;
-
-    @Column(name = "vnpay_pay_date")
-    private Instant vnpayPayDate;
+    @Column(name = "provider_pay_date")
+    private Instant providerPayDate;
 
     @Column(name = "provider_transaction_no", length = 64)
     private String providerTransactionNo;

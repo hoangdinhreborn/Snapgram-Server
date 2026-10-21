@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +28,15 @@ public class VnpayQueryClient {
 
     @Autowired
     public VnpayQueryClient(VnpayProperties properties, ObjectMapper objectMapper) {
-        this(properties, objectMapper, RestClient.create());
+        this(properties, objectMapper, buildRestClient());
+    }
+
+    /** QueryDR la request admin doi soat — dat timeout de khong treo request vo han. */
+    private static RestClient buildRestClient() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(30));
+        return RestClient.builder().requestFactory(factory).build();
     }
 
     public VnpayQueryClient(VnpayProperties properties, ObjectMapper objectMapper, RestClient restClient) {
@@ -57,6 +67,7 @@ public class VnpayQueryClient {
                 properties.getTmnCode(), orderId, txnDate, createDate, "127.0.0.1", orderInfo);
         body.put("vnp_SecureHash", VnpaySigner.hmacSha512(properties.getHashSecret(), raw));
 
+        Map<String, String> resp;
         try {
             String json = restClient.post()
                     .uri(properties.getApiUrl())
@@ -64,13 +75,23 @@ public class VnpayQueryClient {
                     .body(body)
                     .retrieve()
                     .body(String.class);
-            Map<String, String> resp = objectMapper.readValue(json, new TypeReference<>() {
+            resp = objectMapper.readValue(json, new TypeReference<>() {
             });
-            log.info("QueryDR orderId={} responseCode={} txnStatus={}", orderId,
-                    resp.get("vnp_ResponseCode"), resp.get("vnp_TransactionStatus"));
-            return resp;
         } catch (Exception e) {
             throw new IllegalStateException("QueryDR failed for order " + orderId + ": " + e.getMessage(), e);
         }
+
+        // VNPay ky ca response QueryDR — co hash thi phai khop, sai thi khong tin du lieu doi soat.
+        String responseHash = resp.get("vnp_SecureHash");
+        if (responseHash == null || responseHash.isBlank()) {
+            log.warn("QueryDR response has no vnp_SecureHash for order {} — skipping signature check", orderId);
+        } else if (!VnpaySigner.verifyQueryDrResponse(resp, properties.getTmnCode(),
+                properties.getHashSecret())) {
+            throw new IllegalStateException("Invalid QueryDR response signature for order " + orderId);
+        }
+
+        log.info("QueryDR orderId={} responseCode={} txnStatus={}", orderId,
+                resp.get("vnp_ResponseCode"), resp.get("vnp_TransactionStatus"));
+        return resp;
     }
 }

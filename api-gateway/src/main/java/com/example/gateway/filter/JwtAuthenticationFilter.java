@@ -55,10 +55,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/auth/refresh"
     );
 
-    // VNPay callback: VNPay gọi trực tiếp, không có JWT — verify bằng chữ ký, không bằng token.
+    // VNPay/MoMo callback: provider goi truc tiep, khong co JWT — verify bang chu ky.
     private static final Set<String> PUBLIC_PREFIXES = Set.of(
             "/api/payments/vnpay/ipn",
-            "/api/payments/vnpay/return"
+            "/api/payments/vnpay/return",
+            "/api/payments/momo/ipn",
+            "/api/payments/momo/return"
     );
 
     private final WebClient authWebClient;

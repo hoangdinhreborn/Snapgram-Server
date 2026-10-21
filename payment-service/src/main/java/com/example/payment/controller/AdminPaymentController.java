@@ -39,8 +39,8 @@ public class AdminPaymentController {
     }
 
     /**
-     * POST /api/admin/payments/{orderId}/reconcile — doi chieu thu cong voi VNPay
-     * qua QueryDR khi IPN that lac. Chi admin.
+     * POST /api/admin/payments/{orderId}/reconcile — doi chieu thu cong voi provider
+     * (VNPay QueryDR / MoMo query) khi IPN that lac. Chi admin.
      */
     @PostMapping("/{orderId}/reconcile")
     public ResponseEntity<PaymentOrderResponse> reconcile(@PathVariable String orderId) {

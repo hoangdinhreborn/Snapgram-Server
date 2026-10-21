@@ -1,5 +1,6 @@
 package com.example.payment.controller;
 
+import com.example.payment.adapter.vnpay.VnpayPaymentGateway;
 import com.example.payment.dto.PaymentCallbackResult;
 import com.example.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ public class VnpayCallbackController {
      */
     @GetMapping("/return")
     public ResponseEntity<Void> vnpayReturn(@RequestParam Map<String, String> params) {
-        PaymentCallbackResult result = paymentService.previewReturn(params);
+        PaymentCallbackResult result = paymentService.previewReturn(VnpayPaymentGateway.PROVIDER, params);
         String location = frontendResultUrl
                 + "?orderId=" + encode(result.orderId())
                 + "&responseCode=" + encode(result.responseCode())
@@ -44,7 +45,7 @@ public class VnpayCallbackController {
      */
     @GetMapping("/ipn")
     public ResponseEntity<Map<String, String>> vnpayIpn(@RequestParam Map<String, String> params) {
-        return ResponseEntity.ok(paymentService.handleIpn(params));
+        return ResponseEntity.ok(paymentService.handleIpn(VnpayPaymentGateway.PROVIDER, params));
     }
 
     private String encode(String value) {

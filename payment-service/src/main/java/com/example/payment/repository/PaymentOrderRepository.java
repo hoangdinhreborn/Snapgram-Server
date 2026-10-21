@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,9 +30,24 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, UUID
 
     Page<PaymentOrder> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
-    boolean existsByUserIdAndOrderId(UUID userId, String orderId);
-
-    long countByUserIdAndProductCodeAndStatus(UUID userId, String productCode, PaymentStatus status);
+    /**
+     * Ung vien cho scheduler doi chieu provider: PENDING du lau, hoac EXPIRED
+     * trong khoang grace de bat kip giao dich den tre. Uu tien don cu truoc.
+     */
+    @Query("""
+            select p from PaymentOrder p
+            where p.provider = :provider
+              and ((p.status = :pending and p.createdAt < :createdBefore)
+                or (p.status = :expired and p.expiredAt > :expiredAfter))
+            order by p.createdAt asc
+            """)
+    List<PaymentOrder> findReconcileCandidates(
+            @Param("provider") String provider,
+            @Param("pending") PaymentStatus pending,
+            @Param("expired") PaymentStatus expired,
+            @Param("createdBefore") Instant createdBefore,
+            @Param("expiredAfter") Instant expiredAfter,
+            Pageable pageable);
 
     /**
      * Chuyen PENDING qua han thanh EXPIRED bang 1 query atomic.
