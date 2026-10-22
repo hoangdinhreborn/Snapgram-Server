@@ -91,6 +91,8 @@ public class UserService {
                         .displayName(u.getDisplayName())
                         .avatarUrl(u.getAvatarUrl())
                         .privateAccount(u.isPrivateAccount())
+                        .verified(isVerifiedActive(u))
+                        .verifiedUntil(u.getVerifiedUntil())
                         .createdAt(u.getCreatedAt())
                         .build());
     }
@@ -315,6 +317,13 @@ public class UserService {
                 });
     }
 
+    /** Blue Tick còn hiệu lực tại thời điểm đọc — tránh badge tồn tại sau verified_until. */
+    private boolean isVerifiedActive(AuthUser u) {
+        return u.isVerified()
+                && u.getVerifiedUntil() != null
+                && u.getVerifiedUntil().isAfter(Instant.now());
+    }
+
     /** Full profile — owner view (includes sensitive settings). */
     private UserProfileResponse toFullProfile(AuthUser u) {
         return UserProfileResponse.builder()
@@ -328,6 +337,8 @@ public class UserService {
                 .pronouns(u.getPronouns())
                 .category(u.getCategory())
                 .privateAccount(u.isPrivateAccount())
+                .verified(isVerifiedActive(u))
+                .verifiedUntil(u.getVerifiedUntil())
                 .emailVerified(u.isEmailVerified())
                 .twoFaEnabled(u.isTwoFaEnabled())
                 .showActivityStatus(u.isShowActivityStatus())
@@ -345,6 +356,8 @@ public class UserService {
                 .displayName(u.getDisplayName())
                 .avatarUrl(u.getAvatarUrl())
                 .privateAccount(u.isPrivateAccount())
+                .verified(isVerifiedActive(u))
+                .verifiedUntil(u.getVerifiedUntil())
                 .createdAt(u.getCreatedAt())
                 // Hidden fields when account is private and viewer is not owner
                 .bio(isPrivate ? null : u.getBio())

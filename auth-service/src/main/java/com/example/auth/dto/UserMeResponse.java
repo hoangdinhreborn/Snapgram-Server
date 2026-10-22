@@ -17,5 +17,7 @@ public class UserMeResponse {
     private String displayName;
     private String avatarUrl;
     private boolean emailVerified;
+    private boolean verified;
+    private Instant verifiedUntil;
     private Instant createdAt;
 }

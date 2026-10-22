@@ -29,7 +29,7 @@ Tài liệu này cung cấp hướng dẫn đầy đủ, chi tiết cho đội n
 | `POST` | `/api/auth/login` | Public | Đăng nhập người dùng thường |
 | `POST` | `/api/auth/admin/login` | Public | Đăng nhập dành riêng cho Quản trị viên (`ADMIN`) |
 | `POST` | `/api/auth/login/2fa` | Public | Xác thực bước 2 (TOTP / Backup Code) khi tài khoản bật 2FA |
-| `GET`  | `/api/auth/me` | Authenticated | Lấy thông tin user hiện tại và role (`USER` / `ADMIN`) |
+| `GET`  | `/api/auth/me` | Authenticated | Lấy thông tin user hiện tại, role (`USER` / `ADMIN`) và trạng thái Blue Tick (`verified`, `verifiedUntil`) |
 | `POST` | `/api/auth/refresh` | Public / Cookie | Cấp lại access token mới khi access token cũ hết hạn |
 | `POST` | `/api/auth/logout` | Authenticated | Đăng xuất, xóa toàn bộ cookie trên trình duyệt |
 
@@ -129,9 +129,12 @@ Tài liệu này cung cấp hướng dẫn đầy đủ, chi tiết cho đội n
     "avatarUrl": "https://...",
     "role": "ADMIN", // Giá trị: "USER" hoặc "ADMIN"
     "emailVerified": true,
+    "verified": false, // Blue Tick còn hiệu lực tại thời điểm gọi API
+    "verifiedUntil": null, // null/không có nếu chưa từng mua
     "createdAt": "2026-10-01T08:00:00Z"
   }
   ```
+- **Trường mới (2026-10-21):** `verified` và `verifiedUntil` — xem chi tiết tại [mục 3.4.1](#341-trạng-thái-blue-tick-trong-hồ-sơ-người-dùng).
 - **Response chưa đăng nhập (401 Unauthorized):**
   ```json
   {
@@ -141,6 +144,47 @@ Tài liệu này cung cấp hướng dẫn đầy đủ, chi tiết cho đội n
   }
   ```
   -> Frontend chuyển hướng người dùng về trang `/login`.
+
+#### 3.4.1. Trạng thái Blue Tick trong hồ sơ người dùng
+
+Từ bản cập nhật **2026-10-21**, các response hồ sơ trả thêm 2 trường:
+
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `verified` | `boolean` | `true` khi tài khoản đã mua Blue Tick **và** `verifiedUntil > now`. Đây là trạng thái hiệu lực để FE hiển thị badge. |
+| `verifiedUntil` | `string` ISO-8601 hoặc `null` | Hạn cuối Blue Tick còn hiệu lực. Vẫn trả về khi đã hết hạn để FE hiển thị "hết hạn ngày...". |
+
+**Các endpoint trả 2 trường này:**
+
+| Endpoint | DTO |
+|---|---|
+| `GET /api/auth/me` | `UserMeResponse` |
+| `GET /api/users/me`, `PATCH /api/users/me` | `UserProfileResponse` |
+| `PUT /api/users/me/privacy`, `PUT /api/users/me/activity-status` | `UserProfileResponse` |
+| `GET /api/users/{username}`, `GET /api/users/search` | `UserProfileResponse` |
+
+**Ví dụ profile đã có Blue Tick:**
+```json
+{
+  "id": "b1f0...",
+  "username": "e2euser",
+  "displayName": "E2E User",
+  "avatarUrl": "https://...",
+  "privateAccount": false,
+  "verified": true,
+  "verifiedUntil": "2027-01-18T13:45:15Z",
+  "createdAt": "2026-10-20T13:38:55Z"
+}
+```
+
+**Quy tắc hiển thị phía Frontend:**
+- `verified === true` → hiện badge tích xanh cạnh username.
+- `verified === false` và có `verifiedUntil` → hiện trạng thái "đã hết hạn", cho phép mua/gia hạn.
+- `verified === false` và không có `verifiedUntil` → chưa từng mua Blue Tick.
+- **Không** dùng trực tiếp cột `is_verified` trong DB để quyết định hiển thị; BE đã tính `verified` theo thời gian thực khi trả response.
+
+**Nguồn cấp Blue Tick:** luồng thanh toán `payment.completed` (sản phẩm `BLUE_TICK`). Mỗi giao dịch thành công cộng thêm 30 ngày:
+`verified_until = GREATEST(now, verified_until) + 30d`. Mua lại khi còn hạn sẽ cộng dồn, không ghi đè.
 
 ---
 
@@ -290,6 +334,8 @@ export interface UserMe {
   displayName: string;
   avatarUrl?: string;
   emailVerified: boolean;
+  verified?: boolean; // Blue Tick còn hiệu lực
+  verifiedUntil?: string; // ISO-8601, null/không có nếu chưa từng mua
   createdAt: string;
 }
 
@@ -467,6 +513,7 @@ export const AdminRoute: React.FC = () => {
 - [ ] Không lưu token vào `localStorage`, `sessionStorage` hay `document.cookie`.
 - [ ] Form đăng ký không cho phép người dùng chọn hoặc gửi field `role`.
 - [ ] Khi khởi động app, gọi `GET /api/auth/me` để lấy thông tin phiên làm việc.
+- [ ] Hiển thị badge tích xanh dựa trên `verified` (không dùng `is_verified`), và dùng `verifiedUntil` để hiển thị hạn/gia hạn.
 - [ ] Màn hình đăng nhập trang Admin trỏ đến `POST /api/auth/admin/login`.
 - [ ] Khi nhận lỗi `401` ở request thông thường, Interceptor tự động gọi `POST /api/auth/refresh` và retry request ban đầu.
 - [ ] Khi đăng xuất, gọi `POST /api/auth/logout` và xóa sạch state user trên client.
