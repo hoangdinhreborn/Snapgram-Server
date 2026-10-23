@@ -28,10 +28,11 @@ class FollowServiceEventTest {
     @Mock private FollowRepository followRepository;
     @Mock private UserPrivacyViewRepository userPrivacyViewRepository;
     @Mock private KafkaTemplate<String, Object> kafkaTemplate;
+    @Mock private com.example.content.client.AuthServiceClient authServiceClient;
 
     @Test
     void acceptedFollowPublishesStableFollowId() {
-        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate, authServiceClient);
         UUID followerId = UUID.randomUUID();
         UUID followingId = UUID.randomUUID();
         UUID relationshipId = UUID.randomUUID();
@@ -54,7 +55,7 @@ class FollowServiceEventTest {
 
     @Test
     void unfollowPublishesUnfollowEvent() {
-        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate, authServiceClient);
         UUID followerId = UUID.randomUUID();
         UUID followingId = UUID.randomUUID();
         UUID relationshipId = UUID.randomUUID();
@@ -80,7 +81,7 @@ class FollowServiceEventTest {
 
     @Test
     void rejectRequestPublishesRejectedEvent() {
-        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate, authServiceClient);
         UUID followerId = UUID.randomUUID();
         UUID followingId = UUID.randomUUID();
         UUID followId = UUID.randomUUID();

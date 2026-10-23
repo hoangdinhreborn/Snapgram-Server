@@ -11,6 +11,9 @@ import java.time.Instant;
 public class StoryResponse {
     private String id;
     private String authorId;
+    private String authorUsername;
+    private String authorDisplayName;
+    private String authorAvatarUrl;
     private String mediaId;
     private String mediaUrl;
     private String mediaType;

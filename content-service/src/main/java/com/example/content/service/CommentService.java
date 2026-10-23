@@ -19,6 +19,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -29,6 +31,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentLikeRepository commentLikeRepository;
     private final PostRepository postRepository;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
 
     @Transactional
     public CommentResponse createComment(UUID postId, UUID authorId, CreateCommentRequest request) {
@@ -54,21 +57,36 @@ public class CommentService {
 
         postRepository.incrementCommentCount(postId);
 
-        return toResponse(saved, false);
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(authorId);
+        return toResponse(saved, false, author);
     }
 
     @Transactional(readOnly = true)
     public Page<CommentResponse> getRootComments(UUID postId, UUID requesterId, Pageable pageable) {
         postRepository.findByIdAndStatusNot(postId, PostStatus.DELETED)
                 .orElseThrow(() -> new ContentNotFoundException("Post not found"));
-        return commentRepository.findRootCommentsByPostId(postId, pageable)
-                .map(c -> toResponse(c, commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId)));
+        Page<Comment> comments = commentRepository.findRootCommentsByPostId(postId, pageable);
+        List<UUID> authorIds = comments.getContent().stream().map(Comment::getAuthorId).distinct().toList();
+        Map<UUID, com.example.content.client.AuthServiceClient.UserSummary> authorMap =
+                authServiceClient.getUsersSummaryMap(authorIds);
+        return comments.map(c -> toResponse(
+                c,
+                commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId),
+                authorMap.get(c.getAuthorId())
+        ));
     }
 
     @Transactional(readOnly = true)
     public Page<CommentResponse> getReplies(UUID postId, UUID parentCommentId, UUID requesterId, Pageable pageable) {
-        return commentRepository.findReplies(postId, parentCommentId, pageable)
-                .map(c -> toResponse(c, commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId)));
+        Page<Comment> comments = commentRepository.findReplies(postId, parentCommentId, pageable);
+        List<UUID> authorIds = comments.getContent().stream().map(Comment::getAuthorId).distinct().toList();
+        Map<UUID, com.example.content.client.AuthServiceClient.UserSummary> authorMap =
+                authServiceClient.getUsersSummaryMap(authorIds);
+        return comments.map(c -> toResponse(
+                c,
+                commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId),
+                authorMap.get(c.getAuthorId())
+        ));
     }
 
     @Transactional
@@ -115,8 +133,9 @@ public class CommentService {
         commentRepository.decrementLikeCount(commentId);
     }
 
-    private CommentResponse toResponse(Comment c, boolean likedByMe) {
-        return CommentResponse.builder()
+    private CommentResponse toResponse(Comment c, boolean likedByMe,
+                                       com.example.content.client.AuthServiceClient.UserSummary author) {
+        CommentResponse.CommentResponseBuilder builder = CommentResponse.builder()
                 .id(c.getId().toString())
                 .postId(c.getPost().getId().toString())
                 .authorId(c.getAuthorId().toString())
@@ -125,7 +144,14 @@ public class CommentService {
                 .likeCount(c.getLikeCount())
                 .likedByMe(likedByMe)
                 .createdAt(c.getCreatedAt())
-                .updatedAt(c.getUpdatedAt())
-                .build();
+                .updatedAt(c.getUpdatedAt());
+
+        if (author != null) {
+            builder.authorUsername(author.getUsername())
+                   .authorDisplayName(author.getDisplayName())
+                   .authorAvatarUrl(author.getAvatarUrl());
+        }
+
+        return builder.build();
     }
 }

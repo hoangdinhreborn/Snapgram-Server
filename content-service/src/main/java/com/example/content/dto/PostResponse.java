@@ -12,6 +12,9 @@ import java.util.List;
 public class PostResponse {
     private String id;
     private String authorId;
+    private String authorUsername;
+    private String authorDisplayName;
+    private String authorAvatarUrl;
     private String contentType;
     private String caption;
     private String mediaId;
@@ -30,4 +33,5 @@ public class PostResponse {
     private List<String> hashtags;
     private List<String> mentionedUserIds;
     private boolean likedByMe;
+    private String recommendationReason;
 }

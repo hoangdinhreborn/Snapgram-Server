@@ -26,22 +26,24 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
     @Query("""
             SELECT p FROM Post p
             WHERE p.authorId IN :authorIds
-              AND p.status = 'PUBLISHED'
+              AND p.status = :status
               AND p.visibility IN :visibilities
             ORDER BY p.createdAt DESC
             """)
     Page<Post> findFeedPosts(@Param("authorIds") List<UUID> authorIds,
+                             @Param("status") PostStatus status,
                              @Param("visibilities") List<Visibility> visibilities,
                              Pageable pageable);
 
     @Query("""
             SELECT p FROM Post p
             WHERE p.authorId = :authorId
-              AND p.status = 'PUBLISHED'
+              AND p.status != :deletedStatus
               AND p.visibility IN :visibilities
             ORDER BY p.createdAt DESC
             """)
     Page<Post> findPublicPostsByAuthor(@Param("authorId") UUID authorId,
+                                       @Param("deletedStatus") PostStatus deletedStatus,
                                        @Param("visibilities") List<Visibility> visibilities,
                                        Pageable pageable);
 

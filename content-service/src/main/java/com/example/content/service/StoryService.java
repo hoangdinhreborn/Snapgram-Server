@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -38,6 +39,7 @@ public class StoryService {
     private final FollowRepository followRepository;
     private final CloseFriendRepository closeFriendRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
 
     @Transactional
     public StoryResponse createStory(UUID authorId, CreateStoryRequest request) {
@@ -83,7 +85,8 @@ public class StoryService {
             log.warn("Failed to publish story-created event: {}", e.getMessage());
         }
 
-        return toResponse(saved, false);
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(authorId);
+        return toResponse(saved, false, author);
     }
 
     @Transactional(readOnly = true)
@@ -97,7 +100,8 @@ public class StoryService {
 
         checkStoryVisibility(story, requesterId);
         boolean viewedByMe = storyViewRepository.existsByIdStoryIdAndIdViewerId(storyId, requesterId);
-        return toResponse(story, viewedByMe);
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(story.getAuthorId());
+        return toResponse(story, viewedByMe, author);
     }
 
     @Transactional(readOnly = true)
@@ -107,8 +111,15 @@ public class StoryService {
         authorIds.add(userId);
 
         List<Visibility> visibilities = List.of(Visibility.PUBLIC, Visibility.FOLLOWERS);
-        return storyRepository.findActiveStoriesForFeed(authorIds, Instant.now(), visibilities, pageable)
-                .map(s -> toResponse(s, storyViewRepository.existsByIdStoryIdAndIdViewerId(s.getId(), userId)));
+        Page<Story> page = storyRepository.findActiveStoriesForFeed(authorIds, Instant.now(), visibilities, pageable);
+        List<UUID> storyAuthorIds = page.getContent().stream().map(Story::getAuthorId).distinct().toList();
+        Map<UUID, com.example.content.client.AuthServiceClient.UserSummary> authorMap =
+                authServiceClient.getUsersSummaryMap(storyAuthorIds);
+        return page.map(s -> toResponse(
+                s,
+                storyViewRepository.existsByIdStoryIdAndIdViewerId(s.getId(), userId),
+                authorMap.get(s.getAuthorId())
+        ));
     }
 
     @Transactional
@@ -174,8 +185,9 @@ public class StoryService {
         }
     }
 
-    private StoryResponse toResponse(Story s, boolean viewedByMe) {
-        return StoryResponse.builder()
+    private StoryResponse toResponse(Story s, boolean viewedByMe,
+                                     com.example.content.client.AuthServiceClient.UserSummary author) {
+        StoryResponse.StoryResponseBuilder builder = StoryResponse.builder()
                 .id(s.getId().toString())
                 .authorId(s.getAuthorId().toString())
                 .mediaId(s.getMediaId() != null ? s.getMediaId().toString() : null)
@@ -185,7 +197,14 @@ public class StoryService {
                 .visibility(s.getVisibility().name())
                 .viewedByMe(viewedByMe)
                 .createdAt(s.getCreatedAt())
-                .expiresAt(s.getExpiresAt())
-                .build();
+                .expiresAt(s.getExpiresAt());
+
+        if (author != null) {
+            builder.authorUsername(author.getUsername())
+                   .authorDisplayName(author.getDisplayName())
+                   .authorAvatarUrl(author.getAvatarUrl());
+        }
+
+        return builder.build();
     }
 }

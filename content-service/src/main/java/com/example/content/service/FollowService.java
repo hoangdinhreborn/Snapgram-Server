@@ -31,6 +31,7 @@ public class FollowService {
     private final FollowRepository followRepository;
     private final UserPrivacyViewRepository userPrivacyViewRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
 
     @Transactional
     public FollowResponse follow(UUID followerId, UUID followingId) {
@@ -42,10 +43,13 @@ public class FollowService {
             throw new DuplicateResourceException("Already following or request pending");
         }
 
-        // Check target user's privacy setting
+        // Check target user's privacy setting (with fallback to AuthServiceClient if not yet synced in local view)
         boolean isPrivate = userPrivacyViewRepository.findById(followingId)
                 .map(UserPrivacyView::isPrivate)
-                .orElse(false);
+                .orElseGet(() -> {
+                    com.example.content.client.AuthServiceClient.UserSummary summary = authServiceClient.getUserSummary(followingId);
+                    return summary != null && summary.isPrivateAccount();
+                });
 
         FollowStatus status = isPrivate ? FollowStatus.PENDING : FollowStatus.ACCEPTED;
 

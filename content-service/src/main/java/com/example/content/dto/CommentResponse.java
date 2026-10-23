@@ -12,6 +12,9 @@ public class CommentResponse {
     private String id;
     private String postId;
     private String authorId;
+    private String authorUsername;
+    private String authorDisplayName;
+    private String authorAvatarUrl;
     private String content;
     private String parentCommentId;
     private long likeCount;

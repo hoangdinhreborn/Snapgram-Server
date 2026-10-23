@@ -22,13 +22,21 @@ public interface FollowRepository extends JpaRepository<Follow, UUID> {
 
     Page<Follow> findByFollowerIdAndStatus(UUID followerId, FollowStatus status, Pageable pageable);
 
-    /** IDs of users that followerId is following with ACCEPTED status */
-    @Query("SELECT f.followingId FROM Follow f WHERE f.followerId = :followerId AND f.status = 'ACCEPTED'")
-    List<UUID> findAcceptedFollowingIds(@Param("followerId") UUID followerId);
+    /** IDs of users that followerId is following with given status */
+    @Query("SELECT f.followingId FROM Follow f WHERE f.followerId = :followerId AND f.status = :status")
+    List<UUID> findFollowingIdsByStatus(@Param("followerId") UUID followerId, @Param("status") FollowStatus status);
 
-    /** IDs of accepted followers for a user */
-    @Query("SELECT f.followerId FROM Follow f WHERE f.followingId = :followingId AND f.status = 'ACCEPTED'")
-    List<UUID> findAcceptedFollowerIds(@Param("followingId") UUID followingId);
+    default List<UUID> findAcceptedFollowingIds(UUID followerId) {
+        return findFollowingIdsByStatus(followerId, FollowStatus.ACCEPTED);
+    }
+
+    /** IDs of followers for a user with given status */
+    @Query("SELECT f.followerId FROM Follow f WHERE f.followingId = :followingId AND f.status = :status")
+    List<UUID> findFollowerIdsByStatus(@Param("followingId") UUID followingId, @Param("status") FollowStatus status);
+
+    default List<UUID> findAcceptedFollowerIds(UUID followingId) {
+        return findFollowerIdsByStatus(followingId, FollowStatus.ACCEPTED);
+    }
 
     /** Pending follow requests TO a specific user (ordered newest first) */
     Page<Follow> findByFollowingIdAndStatusOrderByCreatedAtDesc(UUID followingId, FollowStatus status, Pageable pageable);

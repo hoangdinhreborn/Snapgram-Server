@@ -9,6 +9,7 @@ import com.example.content.event.PostCreatedEvent;
 import com.example.content.repository.CloseFriendRepository;
 import com.example.content.repository.FollowRepository;
 import com.example.content.repository.HashtagRepository;
+import com.example.content.repository.InteractionRepository;
 import com.example.content.repository.MuteRepository;
 import com.example.content.repository.PostHashtagRepository;
 import com.example.content.repository.PostMediaRepository;
@@ -44,13 +45,16 @@ class PostServiceEventTest {
     @Mock private HashtagRepository hashtagRepository;
     @Mock private PostHashtagRepository postHashtagRepository;
     @Mock private PostMentionRepository postMentionRepository;
+    @Mock private InteractionRepository interactionRepository;
     @Mock private KafkaTemplate<String, Object> kafkaTemplate;
+    @Mock private com.example.content.client.RecommenderClient recommenderClient;
+    @Mock private com.example.content.client.AuthServiceClient authServiceClient;
 
     @Test
     void postCreatedEventUsesPostIdAndAcceptedFollowers() {
         PostService postService = new PostService(postRepository, postMediaRepository, followRepository,
                 muteRepository, closeFriendRepository, userPrivacyViewRepository, hashtagRepository,
-                postHashtagRepository, postMentionRepository, kafkaTemplate);
+                postHashtagRepository, postMentionRepository, interactionRepository, kafkaTemplate, recommenderClient, authServiceClient);
         UUID authorId = UUID.randomUUID();
         UUID postId = UUID.randomUUID();
         UUID followerId = UUID.randomUUID();
@@ -76,7 +80,7 @@ class PostServiceEventTest {
     void mentionEventIdIsStableForPostAndMentionedUser() {
         PostService postService = new PostService(postRepository, postMediaRepository, followRepository,
                 muteRepository, closeFriendRepository, userPrivacyViewRepository, hashtagRepository,
-                postHashtagRepository, postMentionRepository, kafkaTemplate);
+                postHashtagRepository, postMentionRepository, interactionRepository, kafkaTemplate, recommenderClient, authServiceClient);
         UUID authorId = UUID.randomUUID();
         UUID postId = UUID.randomUUID();
         UUID mentionedUserId = UUID.randomUUID();

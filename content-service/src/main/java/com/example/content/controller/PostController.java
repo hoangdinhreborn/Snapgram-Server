@@ -33,8 +33,11 @@ public class PostController {
     @Operation(summary = "Lấy chi tiết bài đăng")
     @GetMapping("/{id}")
     public ResponseEntity<PostResponse> getPost(@PathVariable UUID id) {
-        UUID userId = UserContext.getCurrentUserId();
-        return ResponseEntity.ok(postService.getPost(id, userId));
+        UUID requesterId = null;
+        try {
+            requesterId = UserContext.getCurrentUserId();
+        } catch (Exception ignored) {}
+        return ResponseEntity.ok(postService.getPost(id, requesterId));
     }
 
     @Operation(summary = "Sửa bài đăng")
@@ -70,7 +73,10 @@ public class PostController {
             @PathVariable UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UUID requesterId = UserContext.getCurrentUserId();
+        UUID requesterId = null;
+        try {
+            requesterId = UserContext.getCurrentUserId();
+        } catch (Exception ignored) {}
         size = Math.min(size, 50);
         return ResponseEntity.ok(postService.getUserPosts(userId, requesterId, PageRequest.of(page, size)));
     }
@@ -91,6 +97,10 @@ public class PostController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         size = Math.min(size, 50);
-        return ResponseEntity.ok(postService.getExplorePosts(PageRequest.of(page, size)));
+        UUID requesterId = null;
+        try {
+            requesterId = UserContext.getCurrentUserId();
+        } catch (Exception ignored) {}
+        return ResponseEntity.ok(postService.getExplorePosts(requesterId, PageRequest.of(page, size)));
     }
 }
