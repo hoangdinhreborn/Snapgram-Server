@@ -49,21 +49,27 @@ public class UserController {
     @GetMapping("/{username}")
     public ResponseEntity<UserProfileResponse> getPublicProfile(
             @PathVariable String username) {
-        return ResponseEntity.ok(userService.getPublicProfile(currentUserId(), username));
+        return ResponseEntity.ok(userService.getPublicProfile(optionalCurrentUserId(), username));
     }
 
     /** GET /api/users/search?q=foo&page=0&size=20 */
     @GetMapping("/search")
     public ResponseEntity<Page<UserProfileResponse>> searchUsers(
-            @RequestParam
-            @NotBlank(message = "Search query must not be blank")
-            @Size(min = 1, max = 50, message = "Search query must be between 1 and 50 characters")
+            @RequestParam(required = false, defaultValue = "")
+            @Size(max = 50, message = "Search query must be at most 50 characters")
             String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         size = Math.min(size, 50);
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(userService.searchUsers(q, pageable));
+    }
+
+    /** POST /api/users/batch */
+    @PostMapping("/batch")
+    public ResponseEntity<java.util.List<UserSummaryDto>> getUsersBatch(
+            @Valid @RequestBody BatchUserRequest request) {
+        return ResponseEntity.ok(userService.getUsersSummaryBatch(request.getUserIds()));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -218,5 +224,9 @@ public class UserController {
 
     private UUID currentUserId() {
         return SecurityUtils.getCurrentUserId();
+    }
+
+    private UUID optionalCurrentUserId() {
+        return SecurityUtils.getOptionalCurrentUserId();
     }
 }

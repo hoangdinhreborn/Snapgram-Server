@@ -320,6 +320,8 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MINIO_ENDPOINT: http://minio:9000
+      AUTH_SERVICE_URL: http://auth-service:8081
+      RECOMMENDER_SERVICE_URL: http://recommender-service:8090
     depends_on:
       postgres-content:
         condition: service_healthy
@@ -328,6 +330,8 @@ services:
       kafka:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]

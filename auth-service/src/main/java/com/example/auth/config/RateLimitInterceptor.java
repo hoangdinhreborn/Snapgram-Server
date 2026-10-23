@@ -8,6 +8,7 @@ import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.Refill;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -22,21 +23,40 @@ import java.util.function.Supplier;
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
 
-    private static final int LIMIT = 100;
-    private static final Duration WINDOW = Duration.ofMinutes(1);
     private static final String KEY_PREFIX = "auth-service:rate-limit:";
 
     private final ProxyManager<byte[]> proxyManager;
     private final ObjectMapper objectMapper;
+    private final boolean enabled;
+    private final int limit;
+    private final Duration window;
 
     @Autowired
-    public RateLimitInterceptor(ProxyManager<byte[]> proxyManager) {
-        this(proxyManager, new ObjectMapper());
+    public RateLimitInterceptor(
+            ProxyManager<byte[]> proxyManager,
+            @Value("${app.rate-limit.enabled:true}") boolean enabled,
+            @Value("${app.rate-limit.limit:5000}") int limit,
+            @Value("${app.rate-limit.window-seconds:60}") long windowSeconds
+    ) {
+        this(proxyManager, new ObjectMapper(), enabled, limit, Duration.ofSeconds(windowSeconds));
     }
 
     public RateLimitInterceptor(ProxyManager<byte[]> proxyManager, ObjectMapper objectMapper) {
+        this(proxyManager, objectMapper, true, 100, Duration.ofMinutes(1));
+    }
+
+    public RateLimitInterceptor(
+            ProxyManager<byte[]> proxyManager,
+            ObjectMapper objectMapper,
+            boolean enabled,
+            int limit,
+            Duration window
+    ) {
         this.proxyManager = proxyManager;
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+        this.enabled = enabled;
+        this.limit = limit;
+        this.window = window;
     }
 
     @Override
@@ -45,6 +65,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             HttpServletResponse response,
             Object handler
     ) throws Exception {
+
+        if (!enabled) {
+            return true;
+        }
+
+        // Bỏ qua request preflight CORS
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
 
         byte[] key = getClientKey(request).getBytes(StandardCharsets.UTF_8);
         Bucket bucket = proxyManager.builder().build(key, bucketConfigSupplier());
@@ -55,10 +84,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         } else {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("application/json");
-            response.setHeader("Retry-After", String.valueOf(WINDOW.getSeconds()));
-            response.setHeader("X-Rate-Limit-Limit", String.valueOf(LIMIT));
+            response.setHeader("Retry-After", String.valueOf(window.getSeconds()));
+            response.setHeader("X-Rate-Limit-Limit", String.valueOf(limit));
             response.setHeader("X-Rate-Limit-Remaining", "0");
-            response.setHeader("X-Rate-Limit-Reset", String.valueOf(System.currentTimeMillis() / 1000 + WINDOW.getSeconds()));
+            response.setHeader("X-Rate-Limit-Reset", String.valueOf(System.currentTimeMillis() / 1000 + window.getSeconds()));
 
             ErrorResponse errorResponse = ErrorResponse.of(
                     HttpStatus.TOO_MANY_REQUESTS.value(),
@@ -79,7 +108,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private Supplier<BucketConfiguration> bucketConfigSupplier() {
         return () -> BucketConfiguration.builder()
-                .addLimit(Bandwidth.classic(LIMIT, Refill.intervally(LIMIT, WINDOW)))
+                .addLimit(Bandwidth.classic(limit, Refill.greedy(limit, window)))
                 .build();
     }
 
@@ -98,8 +127,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     }
 
     private void addRateLimitHeaders(HttpServletResponse response, Bucket bucket) {
-        response.setHeader("X-Rate-Limit-Limit", String.valueOf(LIMIT));
+        response.setHeader("X-Rate-Limit-Limit", String.valueOf(limit));
         response.setHeader("X-Rate-Limit-Remaining", String.valueOf(bucket.getAvailableTokens()));
-        response.setHeader("X-Rate-Limit-Reset", String.valueOf(System.currentTimeMillis() / 1000 + WINDOW.getSeconds()));
+        response.setHeader("X-Rate-Limit-Reset", String.valueOf(System.currentTimeMillis() / 1000 + window.getSeconds()));
     }
 }

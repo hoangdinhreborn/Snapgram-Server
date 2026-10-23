@@ -20,4 +20,12 @@ public final class SecurityUtils {
         }
         return (UUID) auth.getPrincipal();
     }
+
+    public static UUID getOptionalCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof UUID) {
+            return (UUID) auth.getPrincipal();
+        }
+        return null;
+    }
 }

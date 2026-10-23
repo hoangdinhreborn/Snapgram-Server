@@ -136,7 +136,7 @@ public class AuthController {
 
     /** POST /api/auth/logout */
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
+    public ResponseEntity<?> logout(
             @RequestBody(required = false) RefreshTokenRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             HttpServletRequest httpRequest) {
@@ -159,15 +159,17 @@ public class AuthController {
 
         authService.logout(request, accessToken);
 
-        ResponseCookie clearAccess = cookieUtils.clearCookie(CookieUtils.ACCESS_TOKEN_COOKIE, "/");
-        ResponseCookie clearAdminAccess = cookieUtils.clearCookie(CookieUtils.ADMIN_ACCESS_TOKEN_COOKIE, "/");
-        ResponseCookie clearRefresh = cookieUtils.clearCookie(CookieUtils.REFRESH_TOKEN_COOKIE, "/api/auth");
+        ResponseCookie clearAccess = cookieUtils.clearAccessTokenCookie();
+        ResponseCookie clearAdminAccess = cookieUtils.clearAdminAccessTokenCookie();
+        ResponseCookie clearRefresh = cookieUtils.clearRefreshTokenCookie();
+        ResponseCookie clearRefreshRoot = cookieUtils.clearCookie(CookieUtils.REFRESH_TOKEN_COOKIE, "/", "Lax");
 
-        return ResponseEntity.noContent()
+        return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearAccess.toString())
                 .header(HttpHeaders.SET_COOKIE, clearAdminAccess.toString())
                 .header(HttpHeaders.SET_COOKIE, clearRefresh.toString())
-                .build();
+                .header(HttpHeaders.SET_COOKIE, clearRefreshRoot.toString())
+                .body(java.util.Map.of("message", "Logged out successfully"));
     }
 
     /** GET /api/auth/me */

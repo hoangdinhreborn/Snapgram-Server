@@ -23,6 +23,6 @@ public class WebConfig implements WebMvcConfigurer {
         // Rate limiting interceptor
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns("/api/auth/**")
-                .excludePathPatterns("/api/auth/verify"); // Exclude inter-service calls
+                .excludePathPatterns("/api/auth/verify", "/api/auth/me", "/api/auth/logout"); // Exclude internal & session management calls
     }
 }

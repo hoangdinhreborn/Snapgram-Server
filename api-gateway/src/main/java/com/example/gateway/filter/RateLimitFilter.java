@@ -8,12 +8,14 @@ import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.Refill;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -38,20 +40,33 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     private static final String KEY_PREFIX = "gateway:rate-limit:";
 
     private final ProxyManager<byte[]> proxyManager;
+    private final boolean enabled;
     private final int capacity;
     private final long refillDurationSeconds;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public RateLimitFilter(
             ProxyManager<byte[]> proxyManager,
-            @Value("${app.rate-limit.capacity:100}") int capacity,
+            @Value("${app.rate-limit.enabled:true}") boolean enabled,
+            @Value("${app.rate-limit.capacity:5000}") int capacity,
             @Value("${app.rate-limit.refill-duration-seconds:60}") long refillDurationSeconds,
             ObjectMapper objectMapper
     ) {
         this.proxyManager = proxyManager;
+        this.enabled = enabled;
         this.capacity = capacity;
         this.refillDurationSeconds = refillDurationSeconds;
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+    }
+
+    public RateLimitFilter(
+            ProxyManager<byte[]> proxyManager,
+            int capacity,
+            long refillDurationSeconds,
+            ObjectMapper objectMapper
+    ) {
+        this(proxyManager, true, capacity, refillDurationSeconds, objectMapper);
     }
 
     @Override
@@ -61,6 +76,22 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // Skip rate limiting if disabled
+        if (!enabled) {
+            return chain.filter(exchange);
+        }
+
+        // Skip CORS preflight OPTIONS requests
+        if (exchange.getRequest().getMethod() == HttpMethod.OPTIONS) {
+            return chain.filter(exchange);
+        }
+
+        String path = exchange.getRequest().getPath().value();
+        // Skip actuator health checks
+        if (path.startsWith("/actuator")) {
+            return chain.filter(exchange);
+        }
+
         String clientIp = resolveClientIp(exchange);
         byte[] key = (KEY_PREFIX + clientIp).getBytes(StandardCharsets.UTF_8);
 
@@ -87,7 +118,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         return () -> BucketConfiguration.builder()
                 .addLimit(Bandwidth.classic(
                         capacity,
-                        Refill.intervally(capacity, Duration.ofSeconds(refillDurationSeconds))
+                        Refill.greedy(capacity, Duration.ofSeconds(refillDurationSeconds))
                 ))
                 .build();
     }

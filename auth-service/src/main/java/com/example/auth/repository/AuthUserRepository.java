@@ -40,6 +40,8 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, UUID>, JpaSp
 
     List<AuthUser> findTop5ByOrderByCreatedAtDesc();
 
+    Page<AuthUser> findByBannedFalseOrderByCreatedAtDesc(Pageable pageable);
+
     /**
      * Full-text search on username and display_name using PostgreSQL trigram index.
      * Results ordered by relevance (similarity to query string).

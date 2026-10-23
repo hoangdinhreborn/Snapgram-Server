@@ -42,6 +42,13 @@ public class NotificationController {
         return ResponseEntity.ok(notifications);
     }
 
+    @GetMapping("/unread-count")
+    public ResponseEntity<Map<String, Long>> getUnreadCount() {
+        UUID userId = UserContext.getCurrentUserId();
+        long count = notificationRepository.countByUserIdAndIsRead(userId, false);
+        return ResponseEntity.ok(Map.of("unreadCount", count));
+    }
+
     @PostMapping("/{id}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable UUID id) {
         UUID userId = UserContext.getCurrentUserId();

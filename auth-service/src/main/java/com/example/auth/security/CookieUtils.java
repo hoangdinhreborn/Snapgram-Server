@@ -53,12 +53,29 @@ public class CookieUtils {
     }
 
     public ResponseCookie clearCookie(String name, String path) {
+        return clearCookie(name, path, "Lax");
+    }
+
+    public ResponseCookie clearCookie(String name, String path, String sameSite) {
         return ResponseCookie.from(name, "")
                 .httpOnly(true)
                 .secure(secureCookie)
                 .path(path)
+                .sameSite(sameSite)
                 .maxAge(0)
                 .build();
+    }
+
+    public ResponseCookie clearAccessTokenCookie() {
+        return clearCookie(ACCESS_TOKEN_COOKIE, "/", "Lax");
+    }
+
+    public ResponseCookie clearAdminAccessTokenCookie() {
+        return clearCookie(ADMIN_ACCESS_TOKEN_COOKIE, "/", "Strict");
+    }
+
+    public ResponseCookie clearRefreshTokenCookie() {
+        return clearCookie(REFRESH_TOKEN_COOKIE, "/api/auth", "Lax");
     }
 
     public Optional<String> extractCookieValue(HttpServletRequest request, String name) {
@@ -66,8 +83,8 @@ public class CookieUtils {
             return Optional.empty();
         }
         for (Cookie cookie : request.getCookies()) {
-            if (name.equals(cookie.getName())) {
-                return Optional.ofNullable(cookie.getValue());
+            if (name.equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                return Optional.of(cookie.getValue().trim());
             }
         }
         return Optional.empty();

@@ -8,6 +8,10 @@ app:
     initial-password: ${ADMIN_INITIAL_PASSWORD:}
   cookie:
     secure: ${COOKIE_SECURE:false}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    limit: ${AUTH_RATE_LIMIT:5000}
+    window-seconds: ${AUTH_RATE_LIMIT_WINDOW:60}
   jwt:
     secret: ${SNAPGRAM_JWT_SECRET}
     issuer: ${SNAPGRAM_JWT_ISSUER:snapgram-auth}

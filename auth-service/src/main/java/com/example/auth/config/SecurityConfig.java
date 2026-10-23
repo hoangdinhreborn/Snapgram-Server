@@ -47,11 +47,13 @@ public class SecurityConfig {
                                 "/api/auth/login/2fa",
                                 "/api/auth/refresh",
                                 "/api/auth/verify",
+                                "/api/auth/logout",
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
                                 "/api/auth/verify-email",
                                 "/api/auth/admin/bootstrap",
                                 "/api/users/search",
+                                "/api/users/batch",
                                 "/actuator/health",
                                 // Swagger UI
                                 "/swagger-ui.html",
@@ -61,6 +63,12 @@ public class SecurityConfig {
                         // Admin-only endpoints protected by hasAuthority
                         .requestMatchers("/api/auth/admin/**", "/api/admin/**")
                         .hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+                        // Users /me endpoints require authentication
+                        .requestMatchers("/api/users/me", "/api/users/me/**")
+                        .authenticated()
+                        // Public user profile viewing
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/*")
+                        .permitAll()
                         // Authenticated users
                         .anyRequest().authenticated()
                 )

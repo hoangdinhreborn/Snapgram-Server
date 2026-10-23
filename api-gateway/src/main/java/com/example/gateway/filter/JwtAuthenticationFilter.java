@@ -19,6 +19,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -52,7 +53,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/auth/register",
             "/api/auth/login",
             "/api/auth/admin/login",
-            "/api/auth/refresh"
+            "/api/auth/login/2fa",
+            "/api/auth/refresh",
+            "/api/auth/logout",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
+            "/api/auth/verify-email",
+            "/api/users/batch"
     );
 
     private final WebClient authWebClient;
@@ -88,14 +95,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         } else {
             org.springframework.http.HttpCookie cookie = null;
             if (path.startsWith("/api/auth/admin") || path.startsWith("/api/admin")) {
-                cookie = exchange.getRequest().getCookies().getFirst("admin_access_token");
+                cookie = findFirstNonBlankCookie(exchange, "admin_access_token");
                 if (cookie == null) {
-                    cookie = exchange.getRequest().getCookies().getFirst("access_token");
+                    cookie = findFirstNonBlankCookie(exchange, "access_token");
                 }
             } else {
-                cookie = exchange.getRequest().getCookies().getFirst("access_token");
+                cookie = findFirstNonBlankCookie(exchange, "access_token");
                 if (cookie == null) {
-                    cookie = exchange.getRequest().getCookies().getFirst("admin_access_token");
+                    cookie = findFirstNonBlankCookie(exchange, "admin_access_token");
                 }
             }
             if (cookie != null) {
@@ -104,6 +111,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
 
         if (token == null || token.isBlank()) {
+            if (isOptionalAuthPath(exchange.getRequest().getMethod().name(), path)) {
+                return chain.filter(exchange);
+            }
             log.debug("Missing or invalid token for path: {}", path);
             return unauthorized(exchange, "Missing or invalid Authorization header");
         }
@@ -163,6 +173,19 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    private org.springframework.http.HttpCookie findFirstNonBlankCookie(ServerWebExchange exchange, String name) {
+        List<org.springframework.http.HttpCookie> cookies = exchange.getRequest().getCookies().get(name);
+        if (cookies == null || cookies.isEmpty()) {
+            return null;
+        }
+        for (org.springframework.http.HttpCookie c : cookies) {
+            if (c.getValue() != null && !c.getValue().isBlank()) {
+                return c;
+            }
+        }
+        return null;
+    }
+
     private boolean isPublicPath(String path) {
         // Exact match cho auth endpoints
         if (PUBLIC_PATHS.contains(path)) {
@@ -170,6 +193,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
         // Prefix match cho actuator
         return path.startsWith("/actuator");
+    }
+
+    private boolean isOptionalAuthPath(String method, String path) {
+        if ("GET".equalsIgnoreCase(method)) {
+            if (path.startsWith("/api/posts/explore") ||
+                path.startsWith("/api/posts/user/") ||
+                (path.startsWith("/api/posts/") && !path.equals("/api/posts/me") && !path.equals("/api/posts/feed")) ||
+                path.startsWith("/api/users/search") ||
+                path.startsWith("/api/hashtags") ||
+                (path.startsWith("/api/users/") && !path.startsWith("/api/users/me"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {

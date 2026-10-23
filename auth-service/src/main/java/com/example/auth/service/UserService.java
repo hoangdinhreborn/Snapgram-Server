@@ -20,10 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -54,14 +52,21 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserProfileResponse getPublicProfile(UUID viewerId, String username) {
         AuthUser target = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+                .orElseGet(() -> {
+                    try {
+                        return userRepository.findById(UUID.fromString(username))
+                                .orElseThrow(() -> new UserNotFoundException("User not found"));
+                    } catch (IllegalArgumentException e) {
+                        throw new UserNotFoundException("User not found");
+                    }
+                });
 
         // If either side has blocked the other → 404
-        if (isMutuallyBlocked(viewerId, target.getId())) {
+        if (viewerId != null && isMutuallyBlocked(viewerId, target.getId())) {
             throw new UserNotFoundException("User not found");
         }
 
-        return toPublicProfile(target, viewerId.equals(target.getId()));
+        return toPublicProfile(target, viewerId != null && viewerId.equals(target.getId()));
     }
 
     /** PATCH — only update fields that are non-null in the request. */
@@ -81,9 +86,20 @@ public class UserService {
         return toFullProfile(user);
     }
 
-    /** Search users by username / displayName (paginated). */
+    /** Search users by username / displayName (paginated). Returns recent active users if query is blank. */
     @Transactional(readOnly = true)
     public Page<UserProfileResponse> searchUsers(String q, Pageable pageable) {
+        if (q == null || q.trim().isEmpty()) {
+            return userRepository.findByBannedFalseOrderByCreatedAtDesc(pageable)
+                    .map(u -> UserProfileResponse.builder()
+                            .id(u.getId().toString())
+                            .username(u.getUsername())
+                            .displayName(u.getDisplayName())
+                            .avatarUrl(u.getAvatarUrl())
+                            .privateAccount(u.isPrivateAccount())
+                            .createdAt(u.getCreatedAt())
+                            .build());
+        }
         return userRepository.searchByUsernameOrDisplayName(q.trim(), pageable)
                 .map(u -> UserProfileResponse.builder()
                         .id(u.getId().toString())
@@ -93,6 +109,26 @@ public class UserService {
                         .privateAccount(u.isPrivateAccount())
                         .createdAt(u.getCreatedAt())
                         .build());
+    }
+
+    /** Batch retrieve public user summaries by IDs. */
+    @Transactional(readOnly = true)
+    public List<UserSummaryDto> getUsersSummaryBatch(List<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<UUID> uniqueIds = new HashSet<>(userIds);
+        List<AuthUser> users = userRepository.findAllById(uniqueIds);
+        return users.stream()
+                .filter(u -> !u.isBanned())
+                .map(u -> UserSummaryDto.builder()
+                        .id(u.getId().toString())
+                        .username(u.getUsername())
+                        .displayName(u.getDisplayName())
+                        .avatarUrl(u.getAvatarUrl())
+                        .privateAccount(u.isPrivateAccount())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -302,6 +338,7 @@ public class UserService {
     }
 
     private boolean isMutuallyBlocked(UUID a, UUID b) {
+        if (a == null || b == null) return false;
         return blockRepository
                 .existsByBlockerIdAndBlockedIdOrBlockerIdAndBlockedId(a, b, b, a);
     }
