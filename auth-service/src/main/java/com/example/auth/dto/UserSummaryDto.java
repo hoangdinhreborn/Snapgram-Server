@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,4 +19,7 @@ public class UserSummaryDto {
     private String displayName;
     private String avatarUrl;
     private boolean privateAccount;
+    /** Blue Tick còn hiệu lực — để content-service hiển thị huy hiệu cạnh tên tác giả. */
+    private boolean verified;
+    private Instant verifiedUntil;
 }

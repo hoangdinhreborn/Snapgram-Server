@@ -15,6 +15,9 @@ public class PostResponse {
     private String authorUsername;
     private String authorDisplayName;
     private String authorAvatarUrl;
+    /** Tác giả có Blue Tick còn hiệu lực hay không. */
+    private Boolean authorVerified;
+    private java.time.Instant authorVerifiedUntil;
     private String contentType;
     private String caption;
     private String mediaId;

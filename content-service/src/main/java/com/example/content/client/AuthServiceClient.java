@@ -104,6 +104,9 @@ public class AuthServiceClient {
         private String displayName;
         private String avatarUrl;
         private boolean privateAccount;
+        /** Blue Tick còn hiệu lực (auth-service đã tính theo verified_until). */
+        private boolean verified;
+        private java.time.Instant verifiedUntil;
     }
 
     @Data

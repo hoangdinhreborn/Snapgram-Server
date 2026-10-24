@@ -625,7 +625,9 @@ public class PostService {
         if (author != null) {
             builder.authorUsername(author.getUsername())
                    .authorDisplayName(author.getDisplayName())
-                   .authorAvatarUrl(author.getAvatarUrl());
+                   .authorAvatarUrl(author.getAvatarUrl())
+                   .authorVerified(author.isVerified())
+                   .authorVerifiedUntil(author.getVerifiedUntil());
         }
 
         return builder.build();

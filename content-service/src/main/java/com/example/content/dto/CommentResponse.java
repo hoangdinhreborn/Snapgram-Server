@@ -15,6 +15,9 @@ public class CommentResponse {
     private String authorUsername;
     private String authorDisplayName;
     private String authorAvatarUrl;
+    /** Tác giả bình luận có Blue Tick còn hiệu lực hay không. */
+    private Boolean authorVerified;
+    private java.time.Instant authorVerifiedUntil;
     private String content;
     private String parentCommentId;
     private long likeCount;

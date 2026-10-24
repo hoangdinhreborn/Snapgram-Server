@@ -129,6 +129,8 @@ public class UserService {
                         .displayName(u.getDisplayName())
                         .avatarUrl(u.getAvatarUrl())
                         .privateAccount(u.isPrivateAccount())
+                        .verified(isVerifiedActive(u))
+                        .verifiedUntil(u.getVerifiedUntil())
                         .build())
                 .collect(Collectors.toList());
     }
