@@ -33,5 +33,7 @@ public class PostResponse {
     private List<String> hashtags;
     private List<String> mentionedUserIds;
     private boolean likedByMe;
+    /** Người xem hiện tại đã lưu bài này chưa (null khi chưa đăng nhập). */
+    private Boolean savedByMe;
     private String recommendationReason;
 }

@@ -44,6 +44,7 @@ public class PostService {
     private final PostHashtagRepository postHashtagRepository;
     private final PostMentionRepository postMentionRepository;
     private final InteractionRepository interactionRepository;
+    private final SavedPostRepository savedPostRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final com.example.content.client.RecommenderClient recommenderClient;
     private final com.example.content.client.AuthServiceClient authServiceClient;
@@ -232,7 +233,11 @@ public class PostService {
         boolean likedByMe = requesterId != null &&
                 interactionRepository.existsByUserIdAndPostIdAndType(requesterId, id, InteractionType.LIKE);
         com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(post.getAuthorId());
-        return toResponse(post, hashtags, mentions, mediaItems, likedByMe, author);
+        PostResponse response = toResponse(post, hashtags, mentions, mediaItems, likedByMe, author);
+        if (requesterId != null) {
+            response.setSavedByMe(savedPostRepository.existsByIdUserIdAndIdPostId(requesterId, id));
+        }
+        return response;
     }
 
     @CacheEvict(value = CACHE_POST, key = "#postId")
@@ -428,6 +433,10 @@ public class PostService {
                 ? interactionRepository.findPostIdsByUserIdAndTypeAndPostIdIn(requesterId, InteractionType.LIKE, postIds)
                 : Collections.emptySet();
 
+        Set<UUID> savedPostIds = (requesterId != null && !postIds.isEmpty())
+                ? savedPostRepository.findSavedPostIds(requesterId, postIds)
+                : Collections.emptySet();
+
         return page.map(p -> {
             PostResponse res = toResponse(
                     p,
@@ -437,6 +446,9 @@ public class PostService {
                     likedPostIds.contains(p.getId()),
                     authorMap.get(p.getAuthorId())
             );
+            if (requesterId != null) {
+                res.setSavedByMe(savedPostIds.contains(p.getId()));
+            }
             if (reasonMap != null && reasonMap.containsKey(p.getId())) {
                 res.setRecommendationReason(reasonMap.get(p.getId()));
             }
@@ -463,14 +475,24 @@ public class PostService {
                 ? interactionRepository.findPostIdsByUserIdAndTypeAndPostIdIn(requesterId, InteractionType.LIKE, postIds)
                 : Collections.emptySet();
 
-        return page.map(p -> toResponse(
-                p,
-                Collections.emptyList(),
-                Collections.emptyList(),
-                mediaByPostId.getOrDefault(p.getId(), Collections.emptyList()),
-                likedPostIds.contains(p.getId()),
-                authorMap.get(p.getAuthorId())
-        ));
+        Set<UUID> savedPostIds = (requesterId != null && !postIds.isEmpty())
+                ? savedPostRepository.findSavedPostIds(requesterId, postIds)
+                : Collections.emptySet();
+
+        return page.map(p -> {
+            PostResponse res = toResponse(
+                    p,
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    mediaByPostId.getOrDefault(p.getId(), Collections.emptyList()),
+                    likedPostIds.contains(p.getId()),
+                    authorMap.get(p.getAuthorId())
+            );
+            if (requesterId != null) {
+                res.setSavedByMe(savedPostIds.contains(p.getId()));
+            }
+            return res;
+        });
     }
 
     private PostType parsePostType(String typeStr) {

@@ -52,6 +52,13 @@ public class FollowController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Trạng thái follow với một user")
+    @GetMapping("/status/{targetUserId}")
+    public ResponseEntity<com.example.content.dto.FollowStatusResponse> getFollowStatus(
+            @PathVariable UUID targetUserId) {
+        return ResponseEntity.ok(followService.getFollowStatus(UserContext.getCurrentUserId(), targetUserId));
+    }
+
     @Operation(summary = "Danh sách followers")
     @GetMapping("/followers")
     public ResponseEntity<Page<FollowResponse>> getFollowers(

@@ -137,6 +137,17 @@ public class FollowService {
                 .map(this::toResponse);
     }
 
+    /** Trạng thái follow của followerId với followingId — dùng cho nút Theo dõi ở Reels. */
+    @Transactional(readOnly = true)
+    public com.example.content.dto.FollowStatusResponse getFollowStatus(UUID followerId, UUID followingId) {
+        if (followerId.equals(followingId)) {
+            return new com.example.content.dto.FollowStatusResponse(false, "SELF");
+        }
+        return followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
+                .map(f -> new com.example.content.dto.FollowStatusResponse(true, f.getStatus().name()))
+                .orElseGet(() -> new com.example.content.dto.FollowStatusResponse(false, null));
+    }
+
     private void publishFollowEvent(Follow follow) {
         publishFollowStatusEvent(follow.getId(), follow.getFollowerId(), follow.getFollowingId(), follow.getStatus().name());
     }
