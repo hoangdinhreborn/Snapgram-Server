@@ -137,14 +137,18 @@ public class NotificationConsumerService {
             log.warn("Skipping unsupported interaction notification type: {}", event.getType());
             return;
         }
-        if (type != NotificationType.LIKE && type != NotificationType.COMMENT) {
+        if (type != NotificationType.LIKE && type != NotificationType.COMMENT && type != NotificationType.REPLY) {
             return;
         }
+
+        // REPLAY goes to the replied-to comment author; keep targetType = COMMENT so the
+        // client can navigate straight to the post (targetId stays the post id).
+        String targetType = "POST";
 
         Instant now = Instant.now();
         Notification notification = notificationRepository
             .findRecentUnreadGroup(
-                userId, type, "POST", postId.toString(), now.minus(1, ChronoUnit.HOURS), PageRequest.of(0, 1))
+                userId, type, targetType, postId.toString(), now.minus(1, ChronoUnit.HOURS), PageRequest.of(0, 1))
             .stream()
             .findFirst()
             .orElse(null);
@@ -154,7 +158,7 @@ public class NotificationConsumerService {
             notification.setUserId(userId);
             notification.setActorId(actorId);
             notification.setType(type);
-            notification.setTargetType("POST");
+            notification.setTargetType(targetType);
             notification.setTargetId(postId.toString());
             notification.setPayload(serializePayload(Map.of(
                     "postId", postId.toString(),
@@ -416,6 +420,11 @@ public class NotificationConsumerService {
     }
 
     private String interactionMessage(NotificationType type, int count) {
+        if (type == NotificationType.REPLY) {
+            return count == 1
+                    ? "đã trả lời bình luận của bạn"
+                    : count + " người đã trả lời bình luận của bạn";
+        }
         String action = type == NotificationType.LIKE ? "thích" : "bình luận";
         return count == 1
                 ? "đã " + action + " bài viết của bạn"

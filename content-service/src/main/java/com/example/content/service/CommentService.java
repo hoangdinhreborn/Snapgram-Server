@@ -46,9 +46,11 @@ public class CommentService {
 
         // Validate parent comment belongs to same post and resolve to root parent if replying to a child (Instagram style - max depth 1)
         UUID resolvedParentId = null;
+        UUID repliedToAuthorId = null;
         if (request.getParentCommentId() != null) {
             Comment targetParent = commentRepository.findByIdAndPost_Id(request.getParentCommentId(), postId)
                     .orElseThrow(() -> new ContentNotFoundException("Parent comment not found in this post"));
+            repliedToAuthorId = targetParent.getAuthorId();
             resolvedParentId = targetParent.getParentCommentId() != null
                     ? targetParent.getParentCommentId()
                     : targetParent.getId();
@@ -64,6 +66,7 @@ public class CommentService {
         postRepository.incrementCommentCount(postId);
 
         publishCommentEvent(saved, post, authorId);
+        publishReplyEvent(saved, post, repliedToAuthorId, authorId);
 
         com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(authorId);
         return toResponse(saved, false, author);
@@ -91,6 +94,45 @@ public class CommentService {
         } catch (Exception e) {
             log.warn("Failed to dispatch comment interaction event: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Publish a REPLY interaction event so the author of the comment being replied to
+     * also gets notified (previously only the post author was notified).
+     */
+    private void publishReplyEvent(Comment comment, Post post, UUID repliedToAuthorId, UUID authorId) {
+        if (repliedToAuthorId == null) {
+            return; // Not a reply
+        }
+        if (repliedToAuthorId.equals(authorId)) {
+            return; // Replying to yourself
+        }
+        if (post.getAuthorId() != null && repliedToAuthorId.equals(post.getAuthorId())) {
+            return; // Post author already notified via the COMMENT event
+        }
+        try {
+            kafkaTemplate.send(TOPIC_INTERACTION, post.getId().toString(), ContentInteractionEvent.builder()
+                    .eventId(replyEventId(comment.getId()))
+                    .userId(authorId.toString())
+                    .targetUserId(repliedToAuthorId.toString())
+                    .postId(post.getId().toString())
+                    .type("REPLY")
+                    .createdAt(Instant.now())
+                    .build())
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.warn("Failed to publish reply interaction event: {}", ex.getMessage());
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("Failed to dispatch reply interaction event: {}", e.getMessage());
+        }
+    }
+
+    /** Stable, distinct-from-commentId event id so reply notifications stay idempotent. */
+    private String replyEventId(UUID commentId) {
+        return UUID.nameUUIDFromBytes((commentId + ":reply").getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                .toString();
     }
 
     @Transactional(readOnly = true)
