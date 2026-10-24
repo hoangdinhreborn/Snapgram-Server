@@ -22,7 +22,20 @@ public class AuthServiceClient {
 
     private final RestClient restClient;
     private final Map<UUID, CachedUserSummary> summaryCache = new ConcurrentHashMap<>();
-    private static final long CACHE_TTL_SECONDS = 300; // 5 minutes
+    private static final long CACHE_TTL_SECONDS = 60; // 1 phút — hạ từ 300s để badge cập nhật nhanh
+    /**
+     * Xoá cache hồ sơ của một user — gọi khi nhận được event thay đổi hồ sơ
+     * (vd: vừa mua Blue Tick) để lần đọc kế tiếp lấy dữ liệu mới ngay.
+     */
+    public void evict(UUID userId) {
+        if (userId != null) {
+            summaryCache.remove(userId);
+        }
+    }
+
+    public void evictAll() {
+        summaryCache.clear();
+    }
 
     public AuthServiceClient(@Value("${app.auth.url:http://localhost:8081}") String authUrl) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();

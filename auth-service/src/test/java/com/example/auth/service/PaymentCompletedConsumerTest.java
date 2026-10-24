@@ -26,15 +26,20 @@ class PaymentCompletedConsumerTest {
 
     private AuthUserRepository userRepository;
     private AuthPaymentProcessedEventRepository eventRepository;
+    private org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
     private PaymentCompletedConsumer consumer;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(AuthUserRepository.class);
         eventRepository = mock(AuthPaymentProcessedEventRepository.class);
+        @SuppressWarnings("unchecked")
+        org.springframework.kafka.core.KafkaTemplate<String, Object> kafka =
+                mock(org.springframework.kafka.core.KafkaTemplate.class);
+        kafkaTemplate = kafka;
         PaymentGrantProperties grants = new PaymentGrantProperties();
         grants.getGrants().put("BLUE_TICK", Duration.ofDays(30));
-        consumer = new PaymentCompletedConsumer(userRepository, eventRepository, grants);
+        consumer = new PaymentCompletedConsumer(userRepository, eventRepository, grants, kafkaTemplate);
     }
 
     private static String payload(String eventId, String productCode, UUID userId) {

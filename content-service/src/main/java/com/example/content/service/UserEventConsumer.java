@@ -21,6 +21,23 @@ public class UserEventConsumer {
 
     private final UserPrivacyViewRepository userPrivacyViewRepository;
     private final FollowService followService;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
+    /** Có thể không tồn tại (module chưa bật caching) — nên dùng ObjectProvider. */
+    private final org.springframework.beans.factory.ObjectProvider<org.springframework.cache.CacheManager> cacheManagerProvider;
+
+    /** Xoá cache "posts" nếu caching đang bật — vì PostResponse cache kèm authorVerified. */
+    private void evictPostCache() {
+        try {
+            var cacheManager = cacheManagerProvider.getIfAvailable();
+            if (cacheManager == null) return;
+            var cache = cacheManager.getCache("posts");
+            if (cache != null) {
+                cache.clear();
+            }
+        } catch (Exception e) {
+            log.warn("Không xoá được cache posts: {}", e.getMessage());
+        }
+    }
 
     @KafkaListener(topics = "user.events", groupId = "content-service")
     @Transactional
@@ -59,6 +76,17 @@ public class UserEventConsumer {
                         UUID blockedId = UUID.fromString(blockedIdStr);
                         followService.removeMutualFollow(blockerId, blockedId);
                         log.info("Removed mutual follow between {} and {} on USER_BLOCKED", blockerId, blockedId);
+                    }
+                }
+                case "BLUE_TICK_CHANGED" -> {
+                    String userIdStr = (String) payload.get("userId");
+                    if (userIdStr != null) {
+                        UUID userId = UUID.fromString(userIdStr);
+                        // 1) Xoá cache hồ sơ user để lần đọc kế tiếp lấy verified mới
+                        authServiceClient.evict(userId);
+                        // 2) Xoá cache bài viết vì PostResponse có chứa authorVerified
+                        evictPostCache();
+                        log.info("Evicted user summary + post cache for {} on BLUE_TICK_CHANGED", userId);
                     }
                 }
                 default -> log.debug("Ignored user event type in content-service: {}", eventType);

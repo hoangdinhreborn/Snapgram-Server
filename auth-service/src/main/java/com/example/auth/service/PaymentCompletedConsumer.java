@@ -29,6 +29,7 @@ public class PaymentCompletedConsumer {
     private final AuthUserRepository userRepository;
     private final AuthPaymentProcessedEventRepository eventRepository;
     private final PaymentGrantProperties grantProperties;
+    private final org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
@@ -81,6 +82,24 @@ public class PaymentCompletedConsumer {
         eventRepository.save(processed);
         log.info("Cap Blue Tick user={} product={} provider={} den {}",
                 event.userId(), event.productCode(), event.provider(), grantedUntil);
+
+        // Báo cho các service khác (content-service...) xoá cache hồ sơ user
+        // để huy hiệu tích xanh hiện ra ngay, không phải chờ TTL.
+        publishBlueTickChanged(event.userId(), grantedUntil);
+    }
+
+    private void publishBlueTickChanged(java.util.UUID userId, java.time.Instant verifiedUntil) {
+        try {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("eventType", "BLUE_TICK_CHANGED");
+            payload.put("userId", userId.toString());
+            payload.put("verified", true);
+            payload.put("verifiedUntil", verifiedUntil != null ? verifiedUntil.toString() : null);
+            payload.put("timestamp", java.time.Instant.now().toString());
+            kafkaTemplate.send("user.events", userId.toString(), payload);
+        } catch (Exception e) {
+            log.warn("Khong publish duoc BLUE_TICK_CHANGED cho user {}: {}", userId, e.getMessage());
+        }
     }
 
     private static String abbreviate(String payload) {

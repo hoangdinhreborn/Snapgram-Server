@@ -216,7 +216,8 @@ public class PostService {
         return toResponse(saved, hashtags, mentionedIds, mediaResponses, false, author);
     }
 
-    @Cacheable(value = CACHE_POST, key = "#id")
+    // Key phải gồm cả requesterId: giá trị cache có likedByMe/savedByMe riêng từng người xem.
+    @Cacheable(value = CACHE_POST, key = "#id + ':' + (#requesterId != null ? #requesterId : 'anon')")
     @Transactional(readOnly = true)
     public PostResponse getPost(UUID id, UUID requesterId) {
         Post post = postRepository.findByIdAndStatusNot(id, PostStatus.DELETED)
@@ -240,7 +241,8 @@ public class PostService {
         return response;
     }
 
-    @CacheEvict(value = CACHE_POST, key = "#postId")
+    // Key cache có requesterId nên phải xoá toàn bộ biến thể của post này.
+    @CacheEvict(value = CACHE_POST, allEntries = true)
     @Transactional
     public PostResponse updatePost(UUID postId, UUID authorId, UpdatePostRequest request) {
         Post post = postRepository.findByIdAndStatusNot(postId, PostStatus.DELETED)
@@ -279,7 +281,7 @@ public class PostService {
         return toResponse(saved, getPostHashtags(postId), getPostMentions(postId), mediaItems, false, author);
     }
 
-    @CacheEvict(value = CACHE_POST, key = "#postId")
+    @CacheEvict(value = CACHE_POST, allEntries = true)
     @Transactional
     public void deletePost(UUID postId, UUID authorId) {
         Post post = postRepository.findByIdAndStatusNot(postId, PostStatus.DELETED)
