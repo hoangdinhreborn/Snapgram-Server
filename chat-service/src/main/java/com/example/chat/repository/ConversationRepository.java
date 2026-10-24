@@ -15,7 +15,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, UUID
         SELECT c FROM Conversation c
         JOIN ConversationMember m ON m.conversationId = c.id
         WHERE m.userId = :userId AND m.leftAt IS NULL
-        ORDER BY c.updatedAt DESC
+        ORDER BY COALESCE(c.updatedAt, c.createdAt) DESC
     """)
     List<Conversation> findActiveByUserId(@Param("userId") UUID userId);
 

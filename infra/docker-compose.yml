@@ -306,12 +306,15 @@ services:
       DB_URL: jdbc:postgresql://postgres-chat:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUTH_SERVICE_URL: http://auth-service:8081
     depends_on:
       postgres-chat:
         condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "wget -q -O- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'" ]
