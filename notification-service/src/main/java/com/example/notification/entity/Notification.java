@@ -40,6 +40,7 @@ public class Notification {
     private String payload;
 
     @Column(name = "is_read", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonProperty("isRead")
     private boolean isRead = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
