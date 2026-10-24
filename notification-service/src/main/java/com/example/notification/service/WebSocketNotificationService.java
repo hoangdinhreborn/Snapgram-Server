@@ -3,6 +3,7 @@ package com.example.notification.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -51,6 +52,33 @@ public class WebSocketNotificationService extends TextWebSocketHandler {
             }
         }
         log.info("WebSocket disconnected for user {}", userId);
+    }
+
+    /**
+     * Heartbeat: a presence key must never outlive the WebSocket session that created it.
+     * Refreshes the TTL of {@code presence:<userId>} for every user that still has at least
+     * one open session, so long-lived connections are not treated as offline after 10 minutes.
+     */
+    @Scheduled(fixedDelayString = "${notification.presence.refresh-ms:120000}")
+    public void refreshPresenceTtl() {
+        int refreshed = 0;
+        for (Map.Entry<UUID, Set<WebSocketSession>> entry : sessionsByUser.entrySet()) {
+            if (hasOpenSession(entry.getValue())) {
+                markOnline(entry.getKey());
+                refreshed++;
+            }
+        }
+        log.debug("Refreshed presence TTL for {} user(s) with open WebSocket sessions", refreshed);
+    }
+
+    /** True when the user still has at least one open WebSocket session in this instance. */
+    public boolean hasActiveSession(UUID userId) {
+        Set<WebSocketSession> sessions = sessionsByUser.get(userId);
+        return sessions != null && hasOpenSession(sessions);
+    }
+
+    private boolean hasOpenSession(Set<WebSocketSession> sessions) {
+        return sessions.stream().anyMatch(WebSocketSession::isOpen);
     }
 
     /** Publish presence so NotificationDeliveryService knows the user is reachable in real time. */
