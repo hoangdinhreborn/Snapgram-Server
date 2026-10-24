@@ -19,6 +19,8 @@ public class CommentResponse {
     private String parentCommentId;
     private long likeCount;
     private boolean likedByMe;
+    /** Số trả lời trực tiếp (chỉ có ở comment gốc) — null khi không áp dụng. */
+    private Long replyCount;
     private Instant createdAt;
     private Instant updatedAt;
 }

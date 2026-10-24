@@ -143,10 +143,21 @@ public class CommentService {
         List<UUID> authorIds = comments.getContent().stream().map(Comment::getAuthorId).distinct().toList();
         Map<UUID, com.example.content.client.AuthServiceClient.UserSummary> authorMap =
                 authServiceClient.getUsersSummaryMap(authorIds);
+
+        // Số trả lời của từng comment gốc — để client chỉ hiện nút "Xem trả lời" khi thực sự có
+        List<UUID> rootIds = comments.getContent().stream().map(Comment::getId).toList();
+        Map<UUID, Long> replyCounts = new java.util.HashMap<>();
+        if (!rootIds.isEmpty()) {
+            for (Object[] row : commentRepository.countRepliesByParentIds(postId, rootIds)) {
+                replyCounts.put((UUID) row[0], (Long) row[1]);
+            }
+        }
+
         return comments.map(c -> toResponse(
                 c,
                 commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId),
-                authorMap.get(c.getAuthorId())
+                authorMap.get(c.getAuthorId()),
+                replyCounts.getOrDefault(c.getId(), 0L)
         ));
     }
 
@@ -209,6 +220,12 @@ public class CommentService {
 
     private CommentResponse toResponse(Comment c, boolean likedByMe,
                                        com.example.content.client.AuthServiceClient.UserSummary author) {
+        return toResponse(c, likedByMe, author, null);
+    }
+
+    private CommentResponse toResponse(Comment c, boolean likedByMe,
+                                       com.example.content.client.AuthServiceClient.UserSummary author,
+                                       Long replyCount) {
         CommentResponse.CommentResponseBuilder builder = CommentResponse.builder()
                 .id(c.getId().toString())
                 .postId(c.getPost().getId().toString())
@@ -217,6 +234,7 @@ public class CommentService {
                 .parentCommentId(c.getParentCommentId() != null ? c.getParentCommentId().toString() : null)
                 .likeCount(c.getLikeCount())
                 .likedByMe(likedByMe)
+                .replyCount(replyCount)
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt());
 
