@@ -20,32 +20,49 @@ import java.util.UUID;
 public class UserEventConsumer {
 
     private final UserPrivacyViewRepository userPrivacyViewRepository;
+    private final FollowService followService;
 
     @KafkaListener(topics = "user.events", groupId = "content-service")
     @Transactional
     public void handleUserEvent(Map<String, Object> payload) {
         try {
             String eventType = (String) payload.get("eventType");
-            if (!"PRIVACY_CHANGED".equals(eventType)) return;
+            if (eventType == null) return;
 
-            String userIdStr = (String) payload.get("userId");
-            Object isPrivateObj = payload.get("isPrivate");
+            switch (eventType) {
+                case "PRIVACY_CHANGED" -> {
+                    String userIdStr = (String) payload.get("userId");
+                    Object isPrivateObj = payload.get("isPrivate");
 
-            if (userIdStr == null || isPrivateObj == null) return;
+                    if (userIdStr == null || isPrivateObj == null) return;
 
-            UUID userId = UUID.fromString(userIdStr);
-            boolean isPrivate = Boolean.TRUE.equals(isPrivateObj);
+                    UUID userId = UUID.fromString(userIdStr);
+                    boolean isPrivate = Boolean.TRUE.equals(isPrivateObj);
 
-            UserPrivacyView view = userPrivacyViewRepository.findById(userId)
-                    .orElseGet(() -> {
-                        UserPrivacyView v = new UserPrivacyView();
-                        v.setUserId(userId);
-                        return v;
-                    });
-            view.setPrivate(isPrivate);
-            userPrivacyViewRepository.save(view);
+                    UserPrivacyView view = userPrivacyViewRepository.findById(userId)
+                            .orElseGet(() -> {
+                                UserPrivacyView v = new UserPrivacyView();
+                                v.setUserId(userId);
+                                return v;
+                            });
+                    view.setPrivate(isPrivate);
+                    userPrivacyViewRepository.save(view);
 
-            log.info("Updated privacy for user {}: isPrivate={}", userId, isPrivate);
+                    log.info("Updated privacy for user {}: isPrivate={}", userId, isPrivate);
+                }
+                case "USER_BLOCKED" -> {
+                    String blockerIdStr = (String) payload.get("blockerId");
+                    String blockedIdStr = (String) payload.get("blockedId");
+
+                    if (blockerIdStr != null && blockedIdStr != null) {
+                        UUID blockerId = UUID.fromString(blockerIdStr);
+                        UUID blockedId = UUID.fromString(blockedIdStr);
+                        followService.removeMutualFollow(blockerId, blockedId);
+                        log.info("Removed mutual follow between {} and {} on USER_BLOCKED", blockerId, blockedId);
+                    }
+                }
+                default -> log.debug("Ignored user event type in content-service: {}", eventType);
+            }
         } catch (Exception e) {
             log.warn("Failed to process user.events payload: {}", e.getMessage());
         }

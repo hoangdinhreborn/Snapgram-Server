@@ -93,6 +93,7 @@ public class NotificationConsumerService {
         try {
             root = objectMapper.readTree(record.value());
             JsonNode payload = root.has("data") ? root.get("data") : root;
+            // Events carry extra metadata (eventId, ...) that DTOs do not model -> unknown fields ignored by mapper config
             event = objectMapper.treeToValue(payload, eventType);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Invalid JSON event for topic " + record.topic(), e);

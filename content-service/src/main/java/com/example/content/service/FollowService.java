@@ -75,6 +75,21 @@ public class FollowService {
     }
 
     @Transactional
+    public void removeMutualFollow(UUID userA, UUID userB) {
+        removeFollowIfExists(userA, userB);
+        removeFollowIfExists(userB, userA);
+    }
+
+    private void removeFollowIfExists(UUID followerId, UUID followingId) {
+        followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
+                .ifPresent(follow -> {
+                    followRepository.delete(follow);
+                    publishFollowStatusEvent(follow.getId(), followerId, followingId, "UNFOLLOW");
+                    log.info("Removed follow relation: {} -> {} due to block", followerId, followingId);
+                });
+    }
+
+    @Transactional
     public FollowResponse acceptRequest(UUID followId, UUID followingId) {
         Follow follow = followRepository.findById(followId)
                 .orElseThrow(() -> new ContentNotFoundException("Follow request not found"));

@@ -17,7 +17,13 @@ public interface InteractionRepository extends JpaRepository<Interaction, UUID> 
 
     boolean existsByUserIdAndPostIdAndType(UUID userId, UUID postId, InteractionType type);
 
-    void deleteByUserIdAndPostIdAndType(UUID userId, UUID postId, InteractionType type);
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Interaction i WHERE i.userId = :userId AND i.postId = :postId AND i.type = :type")
+    void deleteByUserIdAndPostIdAndType(
+            @Param("userId") UUID userId,
+            @Param("postId") UUID postId,
+            @Param("type") InteractionType type
+    );
 
     @Query("SELECT i.postId FROM Interaction i WHERE i.userId = :userId AND i.type = :type AND i.postId IN :postIds")
     Set<UUID> findPostIdsByUserIdAndTypeAndPostIdIn(

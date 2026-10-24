@@ -6,6 +6,7 @@ import com.example.content.entity.Comment;
 import com.example.content.entity.CommentLike;
 import com.example.content.entity.Post;
 import com.example.content.entity.PostStatus;
+import com.example.content.event.ContentInteractionEvent;
 import com.example.content.exception.AccessDeniedException;
 import com.example.content.exception.ContentNotFoundException;
 import com.example.content.exception.DuplicateResourceException;
@@ -16,9 +17,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,10 +31,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CommentService {
 
+    private static final String TOPIC_INTERACTION = "content.interaction";
+
     private final CommentRepository commentRepository;
     private final CommentLikeRepository commentLikeRepository;
     private final PostRepository postRepository;
     private final com.example.content.client.AuthServiceClient authServiceClient;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Transactional
     public CommentResponse createComment(UUID postId, UUID authorId, CreateCommentRequest request) {
@@ -57,8 +63,34 @@ public class CommentService {
 
         postRepository.incrementCommentCount(postId);
 
+        publishCommentEvent(saved, post, authorId);
+
         com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(authorId);
         return toResponse(saved, false, author);
+    }
+
+    /** Publish COMMENT interaction event so notification-service can notify the post author. */
+    private void publishCommentEvent(Comment comment, Post post, UUID authorId) {
+        if (post.getAuthorId() == null || post.getAuthorId().equals(authorId)) {
+            return; // Do not notify yourself
+        }
+        try {
+            kafkaTemplate.send(TOPIC_INTERACTION, post.getId().toString(), ContentInteractionEvent.builder()
+                    .eventId(comment.getId().toString())
+                    .userId(authorId.toString())
+                    .targetUserId(post.getAuthorId().toString())
+                    .postId(post.getId().toString())
+                    .type("COMMENT")
+                    .createdAt(Instant.now())
+                    .build())
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.warn("Failed to publish comment interaction event: {}", ex.getMessage());
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("Failed to dispatch comment interaction event: {}", e.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)

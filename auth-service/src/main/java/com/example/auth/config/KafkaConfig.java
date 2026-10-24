@@ -27,6 +27,7 @@ public class KafkaConfig {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
         props.put(JacksonJsonSerializer.ADD_TYPE_INFO_HEADERS, false);
         props.put(ProducerConfig.ACKS_CONFIG, "1");
+        props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 2000);
         return new DefaultKafkaProducerFactory<>(props);
     }
 

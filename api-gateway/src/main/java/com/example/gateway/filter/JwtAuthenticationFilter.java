@@ -86,6 +86,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
+        // WebSocket handshakes from browsers cannot carry Authorization headers.
+        // The notification handler resolves the user from the X-User-Id / ?userId= handshake data.
+        if (path.startsWith("/ws/")) {
+            return chain.filter(exchange);
+        }
+
         // Lấy token từ Authorization header hoặc Cookie
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         String token = null;
