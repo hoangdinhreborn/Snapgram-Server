@@ -22,6 +22,20 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
 
     Page<Post> findByStatusAndVisibilityOrderByCreatedAtDesc(PostStatus status, Visibility visibility, Pageable pageable);
 
+    /** Danh sách Reels/Video công khai, mới nhất trước — dùng cho tab Reels có phân trang. */
+    @Query("""
+            SELECT p FROM Post p
+            WHERE p.contentType IN :contentTypes
+              AND p.status = :status
+              AND p.visibility = :visibility
+            ORDER BY p.createdAt DESC
+            """)
+    Page<Post> findReels(
+            @Param("contentTypes") List<com.example.content.entity.PostType> contentTypes,
+            @Param("status") PostStatus status,
+            @Param("visibility") Visibility visibility,
+            Pageable pageable);
+
     /** Feed: posts from a list of following user IDs + own, not deleted, with visibility filter */
     @Query("""
             SELECT p FROM Post p

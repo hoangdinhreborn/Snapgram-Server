@@ -91,6 +91,19 @@ public class PostController {
         return ResponseEntity.ok(postService.getFeed(userId, PageRequest.of(page, size)));
     }
 
+    @Operation(summary = "Danh sách Reels (phân trang cho lazy-load)")
+    @GetMapping("/reels")
+    public ResponseEntity<Page<PostResponse>> getReels(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "6") int size) {
+        size = Math.min(size, 30);
+        UUID requesterId = null;
+        try {
+            requesterId = UserContext.getCurrentUserId();
+        } catch (Exception ignored) {}
+        return ResponseEntity.ok(postService.getReels(requesterId, PageRequest.of(page, size)));
+    }
+
     @Operation(summary = "Khám phá")
     @GetMapping("/explore")
     public ResponseEntity<Page<PostResponse>> explore(

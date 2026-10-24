@@ -377,7 +377,20 @@ public class PostService {
         return enrichPageWithMedia(postsPage, userId);
     }
 
+    /**
+     * Danh sách Reels công khai có phân trang — cho tab Reels lazy-load.
+     * Gồm cả REEL và VIDEO để không bỏ sót clip dọc/ngang.
+     */
     @Transactional(readOnly = true)
+    public Page<PostResponse> getReels(UUID requesterId, Pageable pageable) {
+        Page<Post> reels = postRepository.findReels(
+                List.of(PostType.REEL, PostType.VIDEO),
+                PostStatus.PUBLISHED,
+                Visibility.PUBLIC,
+                pageable);
+        return enrichPageWithMedia(reels, requesterId);
+    }
+
     public Page<PostResponse> getExplorePosts(UUID requesterId, Pageable pageable) {
         // Try getting recommended order from recommender-service
         List<com.example.content.client.RecommenderClient.RecommendedItem> recs =
