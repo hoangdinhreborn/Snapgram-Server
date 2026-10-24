@@ -1,6 +1,6 @@
 package com.example.chat.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,9 +12,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SendMessageRequest {
 
-    @NotBlank(message = "Nội dung tin nhắn không được để trống")
+    /** Có thể rỗng khi gửi ảnh/GIF (chỉ cần mediaUrl). */
+    @Size(max = 4000, message = "Tin nhắn tối đa 4000 ký tự")
     private String content;
 
-    private String type; // TEXT, IMAGE, etc.
+    /** TEXT | IMAGE | GIF | STICKER */
+    private String type;
+
+    @Size(max = 1000)
     private String mediaUrl;
 }

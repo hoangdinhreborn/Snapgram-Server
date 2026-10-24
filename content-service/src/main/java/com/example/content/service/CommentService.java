@@ -59,7 +59,24 @@ public class CommentService {
         Comment comment = new Comment();
         comment.setPost(post);
         comment.setAuthorId(authorId);
-        comment.setContent(request.getContent());
+        String rawContent = request.getContent() != null ? request.getContent().trim() : "";
+        String mediaUrl = request.getMediaUrl() != null ? request.getMediaUrl().trim() : null;
+        if (mediaUrl != null && mediaUrl.isEmpty()) {
+            mediaUrl = null;
+        }
+        if (rawContent.isEmpty() && mediaUrl == null) {
+            throw new IllegalArgumentException("Bình luận cần có nội dung hoặc media");
+        }
+        comment.setContent(rawContent.isEmpty() ? null : rawContent);
+        comment.setMediaUrl(mediaUrl);
+        // Sticker không có mediaUrl (chỉ emoji) nhưng vẫn cần mediaType để client render lớn
+        String requestedType = request.getMediaType();
+        boolean hasRequestedType = requestedType != null && !requestedType.isBlank();
+        comment.setMediaType(
+                (mediaUrl != null || hasRequestedType)
+                        ? normalizeMediaType(requestedType)
+                        : null
+        );
         comment.setParentCommentId(resolvedParentId);
         Comment saved = commentRepository.save(comment);
 
@@ -223,6 +240,16 @@ public class CommentService {
         return toResponse(c, likedByMe, author, null);
     }
 
+    /** Chuẩn hoá loại media của bình luận: IMAGE | GIF | STICKER. */
+    private String normalizeMediaType(String raw) {
+        if (raw == null || raw.isBlank()) return "IMAGE";
+        String value = raw.trim().toUpperCase();
+        return switch (value) {
+            case "IMAGE", "GIF", "STICKER" -> value;
+            default -> "IMAGE";
+        };
+    }
+
     private CommentResponse toResponse(Comment c, boolean likedByMe,
                                        com.example.content.client.AuthServiceClient.UserSummary author,
                                        Long replyCount) {
@@ -231,6 +258,8 @@ public class CommentService {
                 .postId(c.getPost().getId().toString())
                 .authorId(c.getAuthorId().toString())
                 .content(c.getContent())
+                .mediaUrl(c.getMediaUrl())
+                .mediaType(c.getMediaType())
                 .parentCommentId(c.getParentCommentId() != null ? c.getParentCommentId().toString() : null)
                 .likeCount(c.getLikeCount())
                 .likedByMe(likedByMe)

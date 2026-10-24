@@ -21,11 +21,19 @@ public class Comment {
     @Column(name = "author_id", nullable = false)
     private UUID authorId;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String content;
 
     @Column(name = "parent_comment_id")
     private UUID parentCommentId;
+
+    /** Media đính kèm: URL ảnh/GIF (với sticker là emoji). */
+    @Column(name = "media_url", length = 1000)
+    private String mediaUrl;
+
+    /** IMAGE | GIF | STICKER */
+    @Column(name = "media_type", length = 20)
+    private String mediaType;
 
     @Column(name = "like_count", nullable = false)
     private long likeCount = 0;

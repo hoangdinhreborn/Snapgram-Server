@@ -20,6 +20,10 @@ public class CommentResponse {
     private java.time.Instant authorVerifiedUntil;
     private String content;
     private String parentCommentId;
+    /** URL ảnh/GIF, hoặc emoji nếu là sticker. */
+    private String mediaUrl;
+    /** IMAGE | GIF | STICKER */
+    private String mediaType;
     private long likeCount;
     private boolean likedByMe;
     /** Số trả lời trực tiếp (chỉ có ở comment gốc) — null khi không áp dụng. */
