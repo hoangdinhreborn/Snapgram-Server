@@ -62,6 +62,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/users/batch"
     );
 
+    // VNPay/MoMo callback: provider goi truc tiep, khong co JWT — verify bang chu ky.
+    private static final Set<String> PUBLIC_PREFIXES = Set.of(
+            "/api/payments/vnpay/ipn",
+            "/api/payments/vnpay/return",
+            "/api/payments/momo/ipn",
+            "/api/payments/momo/return"
+    );
+
     private final WebClient authWebClient;
     private final JwtPayloadUtil jwtPayloadUtil;
     private final ObjectMapper objectMapper;
@@ -196,6 +204,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         // Exact match cho auth endpoints
         if (PUBLIC_PATHS.contains(path)) {
             return true;
+        }
+        // VNPay IPN/return: prefix match (kèm query params từ VNPay)
+        for (String prefix : PUBLIC_PREFIXES) {
+            if (path.equals(prefix) || path.startsWith(prefix + "/")) {
+                return true;
+            }
         }
         // Prefix match cho actuator
         return path.startsWith("/actuator");

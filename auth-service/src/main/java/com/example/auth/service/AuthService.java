@@ -483,6 +483,10 @@ public class AuthService {
         AuthUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
 
+        boolean verified = user.isVerified()
+                && user.getVerifiedUntil() != null
+                && user.getVerifiedUntil().isAfter(Instant.now());
+
         return UserMeResponse.builder()
                 .id(user.getId().toString())
                 .username(user.getUsername())
@@ -491,6 +495,8 @@ public class AuthService {
                 .avatarUrl(user.getAvatarUrl())
                 .role(user.getRole() != null ? user.getRole().name() : "USER")
                 .emailVerified(user.isEmailVerified())
+                .verified(verified)
+                .verifiedUntil(user.getVerifiedUntil())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

@@ -15,6 +15,7 @@ Auth service database (`snapgram-postgres-auth`) được quản lý bởi **Fly
 - is_private (default: false)
 - 2FA: totp_secret, two_fa_enabled, backup_codes_hash
 - email_verified, email_verified_at
+- Blue Tick: is_verified (default: false), verified_until (nullable, timestamptz)
 - show_activity_status, last_seen_at
 - created_at, updated_at (timestamps)
 
@@ -22,8 +23,26 @@ Indexes:
 - PRIMARY KEY: id
 - UNIQUE: username, email
 - GIN (full-text search): username_trgm, display_name_trgm
+- Partial index: idx_auth_users_verified_until (verified_until) WHERE is_verified = TRUE
 - Foreign keys: auth_user_roles, auth_refresh_tokens, auth_blocks, auth_notes
 ```
+
+##### Blue Tick (verified badge)
+
+Hai cột `is_verified` và `verified_until` được thêm bởi migration
+`V6__add_blue_tick_fields.sql`, phục vụ tính năng mua tích xanh:
+
+| Cột | Ý nghĩa |
+|---|---|
+| `is_verified` | Cờ tài khoản đã từng/đang có Blue Tick. Được set `true` bởi consumer Kafka `payment.completed` (sản phẩm `BLUE_TICK`). |
+| `verified_until` | Thời điểm hết hạn hiệu lực. Mỗi giao dịch thành công cộng dồn: `GREATEST(now, verified_until) + 30d`. |
+
+**Quan trọng khi đọc dữ liệu/API:**
+- API **không** trả trực tiếp `is_verified`; auth-service tính trạng thái hiệu lực tại thời điểm đọc:
+  `verified = is_verified && verified_until != null && verified_until > now`.
+- `UserMeResponse` và `UserProfileResponse` trả thêm `verified` + `verifiedUntil`.
+- Không có scheduler tự đổi `is_verified` về `false` khi hết hạn — cột này giữ lịch sử "đã từng mua",
+  còn badge phải dựa trên `verified` (effective) hoặc so sánh `verified_until` với thời gian hiện tại.
 
 #### 2. `auth_user_roles` - Roles (ADMIN, MODERATOR, USER)
 ```sql
@@ -197,6 +216,7 @@ Response:
 | **Token Revocation** | Refresh tokens can be revoked (revoked_at) |
 | **2FA Support** | TOTP secret + backup codes stored |
 | **Email Verification** | email_verified flag + timestamp |
+| **Blue Tick** | is_verified + verified_until; `verified` effective được tính tại thời điểm đọc |
 | **Timezone Consistency** | UTC for all timestamps |
 | **Indexes** | Full-text search on username & display_name (GIN) |
 | **Cascade Delete** | User deletion cascades to roles, tokens, blocks, notes |
@@ -279,7 +299,7 @@ SELECT extname FROM pg_extension;
 - Proper normalization
 - Good indexing strategy
 - Security best practices (hashed passwords, token hashing)
-- Support for 2FA, email verification, user blocks
+- Support for 2FA, email verification, Blue Tick, user blocks
 - Flyway migrations for version control
 
 ✓ **Entities & repositories are clean**:

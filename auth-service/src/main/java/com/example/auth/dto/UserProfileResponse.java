@@ -17,6 +17,8 @@ public class UserProfileResponse {
     private String displayName;
     private String avatarUrl;
     private boolean privateAccount;
+    private boolean verified;
+    private Instant verifiedUntil;
     private Instant createdAt;
 
     // Hidden when viewer is not the owner AND account is private

@@ -37,6 +37,7 @@
         <module>recommender-service</module>
         <module>media-service</module>
         <module>notification-service</module>
+        <module>payment-service</module>
         <module>api-gateway</module>
     </modules>
 

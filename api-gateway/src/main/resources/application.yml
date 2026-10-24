@@ -59,6 +59,11 @@ spring:
               predicates:
                 - Path=/api/notifications/**
 
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/payments/**,/api/admin/payments/**
+
             # WebSocket: dùng ws:// scheme, cùng port với HTTP (8086)
             - id: notification-websocket
               uri: ${NOTIFICATION_WS_URL:ws://localhost:8086}
@@ -86,6 +91,8 @@ spring:
               - uri: ${MEDIA_SERVICE_URL:http://localhost:8085}
             notification-service:
               - uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+            payment-service:
+              - uri: ${PAYMENT_SERVICE_URL:http://localhost:8087}
     loadbalancer:
       cache:
         enabled: true

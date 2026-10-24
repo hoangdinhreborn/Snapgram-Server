@@ -42,6 +42,11 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:auth-service}
+      auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
+      key-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -51,6 +56,11 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+
+# Thoi han Blue Tick cho moi lan thanh toan thanh cong (payment.completed).
+payment:
+  grants:
+    BLUE_TICK: ${PAYMENT_GRANT_BLUE_TICK:30d}
 
 management:
   endpoints:

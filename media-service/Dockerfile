@@ -14,6 +14,7 @@ COPY content-service/pom.xml /build/content-service/pom.xml
 COPY media-service/pom.xml /build/media-service/pom.xml
 COPY notification-service/pom.xml /build/notification-service/pom.xml
 COPY recommender-service/pom.xml /build/recommender-service/pom.xml
+COPY payment-service/pom.xml /build/payment-service/pom.xml
 COPY api-gateway/pom.xml /build/api-gateway/pom.xml
 
 # Download dependencies trước (tận dụng Docker layer cache)
