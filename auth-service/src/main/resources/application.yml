@@ -110,13 +110,6 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/auth-service.log
-  logback:
-    rollingpolicy:
-      max-file-size: 10MB
-      max-history: 30
 
 springdoc:
   swagger-ui:
