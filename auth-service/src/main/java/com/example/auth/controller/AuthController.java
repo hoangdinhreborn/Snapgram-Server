@@ -71,6 +71,26 @@ public class AuthController {
                 .body(response);
     }
 
+    /** POST /api/auth/facebook */
+    @PostMapping("/facebook")
+    public ResponseEntity<AuthResponse> loginWithFacebook(@Valid @RequestBody FacebookLoginRequest request) {
+        AuthResponse response = authService.loginWithFacebook(request);
+
+        if (Boolean.TRUE.equals(response.getRequiresTwoFa())) {
+            return ResponseEntity.ok(response);
+        }
+
+        ResponseCookie accessCookie = cookieUtils.createAccessTokenCookie(
+                response.getAccessToken(), jwtProperties.accessTokenTtl());
+        ResponseCookie refreshCookie = cookieUtils.createRefreshTokenCookie(
+                response.getRefreshToken(), jwtProperties.refreshTokenTtl());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .body(response);
+    }
+
     /** POST /api/auth/admin/login */
     @PostMapping("/admin/login")
     public ResponseEntity<AuthResponse> adminLogin(@Valid @RequestBody LoginRequest request) {

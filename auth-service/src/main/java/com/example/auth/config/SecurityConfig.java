@@ -17,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, FacebookOAuthProperties.class})
 @EnableScheduling
 public class SecurityConfig {
 
@@ -43,6 +43,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login",
+                                "/api/auth/facebook",
                                 "/api/auth/admin/login",
                                 "/api/auth/login/2fa",
                                 "/api/auth/refresh",

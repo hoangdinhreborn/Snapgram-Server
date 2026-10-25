@@ -52,6 +52,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/register",
             "/api/auth/login",
+            "/api/auth/facebook",
             "/api/auth/admin/login",
             "/api/auth/login/2fa",
             "/api/auth/refresh",

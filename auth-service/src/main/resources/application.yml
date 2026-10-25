@@ -19,6 +19,10 @@ app:
     admin-access-token-ttl: ${SNAPGRAM_JWT_ADMIN_ACCESS_TOKEN_TTL:30m}
     refresh-token-ttl: ${SNAPGRAM_JWT_REFRESH_TOKEN_TTL:30d}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  oauth:
+    facebook:
+      app-id: ${FACEBOOK_APP_ID:}
+      app-secret: ${FACEBOOK_APP_SECRET:}
   mail:
     from: ${GOOGLE_MAIL_USERNAME:}
     from-name: "Snapgram"

@@ -87,6 +87,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * OAuthAuthenticationException — 400
+     */
+    @ExceptionHandler(OAuthAuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleOAuth(OAuthAuthenticationException ex) {
+        log.warn("OAuth authentication error: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of(400, "OAUTH_AUTHENTICATION_FAILED", "Bad Request", ex.getMessage()));
+    }
+
+    /**
      * @Validated on controller method params (e.g. @RequestParam @NotBlank) — 400
      */
     @ExceptionHandler(HandlerMethodValidationException.class)
