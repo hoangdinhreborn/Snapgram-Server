@@ -5,6 +5,7 @@ import com.example.auth.dto.FacebookTokenResponse;
 import com.example.auth.dto.FacebookUserProfile;
 import com.example.auth.exception.OAuthAuthenticationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
@@ -24,6 +25,7 @@ public class FacebookClient {
     private final FacebookOAuthProperties properties;
     private final RestClient restClient;
 
+    @Autowired
     public FacebookClient(FacebookOAuthProperties properties) {
         this.properties = properties;
 
