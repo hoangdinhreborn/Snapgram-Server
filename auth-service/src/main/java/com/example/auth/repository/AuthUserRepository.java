@@ -107,4 +107,91 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, UUID>, JpaSp
                     """
     )
     Page<AuthUser> searchActiveStandardUsers(@Param("q") String q, @Param("role") Role role, Pageable pageable);
+
+    @Query(
+            value = """
+                    SELECT u FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND u.id != :viewerId
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthBlock b
+                          WHERE (b.blockerId = :viewerId AND b.blockedId = u.id)
+                             OR (b.blockerId = u.id AND b.blockedId = :viewerId)
+                      )
+                    ORDER BY u.createdAt DESC
+                    """,
+            countQuery = """
+                    SELECT count(u) FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND u.id != :viewerId
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthBlock b
+                          WHERE (b.blockerId = :viewerId AND b.blockedId = u.id)
+                             OR (b.blockerId = u.id AND b.blockedId = :viewerId)
+                      )
+                    """
+    )
+    Page<AuthUser> findActiveStandardUsersWithoutViewerOrderByCreatedAtDesc(
+            @Param("role") Role role,
+            @Param("viewerId") UUID viewerId,
+            Pageable pageable
+    );
+
+    @Query(
+            value = """
+                    SELECT u FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND u.id != :viewerId
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthBlock b
+                          WHERE (b.blockerId = :viewerId AND b.blockedId = u.id)
+                             OR (b.blockerId = u.id AND b.blockedId = :viewerId)
+                      )
+                      AND (
+                          LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%'))
+                          OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :q, '%'))
+                      )
+                    ORDER BY u.username ASC
+                    """,
+            countQuery = """
+                    SELECT count(u) FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND u.id != :viewerId
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthBlock b
+                          WHERE (b.blockerId = :viewerId AND b.blockedId = u.id)
+                             OR (b.blockerId = u.id AND b.blockedId = :viewerId)
+                      )
+                      AND (
+                          LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%'))
+                          OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :q, '%'))
+                      )
+                    """
+    )
+    Page<AuthUser> searchActiveStandardUsersWithoutViewer(
+            @Param("q") String q,
+            @Param("role") Role role,
+            @Param("viewerId") UUID viewerId,
+            Pageable pageable
+    );
 }

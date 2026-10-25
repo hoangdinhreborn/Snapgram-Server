@@ -62,14 +62,14 @@ public class UserController {
             @RequestParam(defaultValue = "20") int size) {
         size = Math.min(size, 50);
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(userService.searchUsers(q, pageable));
+        return ResponseEntity.ok(userService.searchUsers(optionalCurrentUserId(), q, pageable));
     }
 
     /** POST /api/users/batch */
     @PostMapping("/batch")
     public ResponseEntity<java.util.List<UserSummaryDto>> getUsersBatch(
             @Valid @RequestBody BatchUserRequest request) {
-        return ResponseEntity.ok(userService.getUsersSummaryBatch(request.getUserIds()));
+        return ResponseEntity.ok(userService.getUsersSummaryBatch(optionalCurrentUserId(), request.getUserIds()));
     }
 
     // ─────────────────────────────────────────────────────────────

@@ -101,37 +101,51 @@ public class UserService {
     /** Search users by username / displayName (paginated). Returns recent active users if query is blank. Only standard USER role accounts are returned. */
     @Transactional(readOnly = true)
     public Page<UserProfileResponse> searchUsers(String q, Pageable pageable) {
-        if (q == null || q.trim().isEmpty()) {
-            return userRepository.findActiveStandardUsersOrderByCreatedAtDesc(Role.USER, pageable)
-                    .map(u -> UserProfileResponse.builder()
-                            .id(u.getId().toString())
-                            .username(u.getUsername())
-                            .displayName(u.getDisplayName())
-                            .avatarUrl(u.getAvatarUrl())
-                            .role(u.getRole() != null ? u.getRole().name() : "USER")
-                            .privateAccount(u.isPrivateAccount())
-                            .verified(isVerifiedActive(u))
-                            .verifiedUntil(u.getVerifiedUntil())
-                            .createdAt(u.getCreatedAt())
-                            .build());
+        return searchUsers(null, q, pageable);
+    }
+
+    /** Search users by username / displayName with viewer mutual block exclusion. */
+    @Transactional(readOnly = true)
+    public Page<UserProfileResponse> searchUsers(UUID viewerId, String q, Pageable pageable) {
+        Page<AuthUser> page;
+        boolean hasQuery = q != null && !q.trim().isEmpty();
+
+        if (viewerId != null) {
+            if (!hasQuery) {
+                page = userRepository.findActiveStandardUsersWithoutViewerOrderByCreatedAtDesc(Role.USER, viewerId, pageable);
+            } else {
+                page = userRepository.searchActiveStandardUsersWithoutViewer(q.trim(), Role.USER, viewerId, pageable);
+            }
+        } else {
+            if (!hasQuery) {
+                page = userRepository.findActiveStandardUsersOrderByCreatedAtDesc(Role.USER, pageable);
+            } else {
+                page = userRepository.searchActiveStandardUsers(q.trim(), Role.USER, pageable);
+            }
         }
-        return userRepository.searchActiveStandardUsers(q.trim(), Role.USER, pageable)
-                .map(u -> UserProfileResponse.builder()
-                        .id(u.getId().toString())
-                        .username(u.getUsername())
-                        .displayName(u.getDisplayName())
-                        .avatarUrl(u.getAvatarUrl())
-                        .role(u.getRole() != null ? u.getRole().name() : "USER")
-                        .privateAccount(u.isPrivateAccount())
-                        .verified(isVerifiedActive(u))
-                        .verifiedUntil(u.getVerifiedUntil())
-                        .createdAt(u.getCreatedAt())
-                        .build());
+
+        return page.map(u -> UserProfileResponse.builder()
+                .id(u.getId().toString())
+                .username(u.getUsername())
+                .displayName(u.getDisplayName())
+                .avatarUrl(u.getAvatarUrl())
+                .role(u.getRole() != null ? u.getRole().name() : "USER")
+                .privateAccount(u.isPrivateAccount())
+                .verified(isVerifiedActive(u))
+                .verifiedUntil(u.getVerifiedUntil())
+                .createdAt(u.getCreatedAt())
+                .build());
     }
 
     /** Batch retrieve public user summaries by IDs. Only active standard USER role accounts are returned. */
     @Transactional(readOnly = true)
     public List<UserSummaryDto> getUsersSummaryBatch(List<UUID> userIds) {
+        return getUsersSummaryBatch(null, userIds);
+    }
+
+    /** Batch retrieve public user summaries by IDs with viewer mutual block exclusion. */
+    @Transactional(readOnly = true)
+    public List<UserSummaryDto> getUsersSummaryBatch(UUID viewerId, List<UUID> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -139,6 +153,11 @@ public class UserService {
         List<AuthUser> users = userRepository.findAllById(uniqueIds);
         List<UUID> nonStandardUserIds = userRoleRepository.findNonStandardRoleUserIds();
         Set<UUID> excludedIds = new HashSet<>(nonStandardUserIds);
+
+        if (viewerId != null) {
+            excludedIds.add(viewerId);
+            excludedIds.addAll(blockRepository.findMutualBlockedUserIds(viewerId));
+        }
 
         return users.stream()
                 .filter(u -> !u.isBanned() && u.getRole() == Role.USER && !excludedIds.contains(u.getId()))

@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,7 +63,7 @@ class UserControllerBatchTest {
                         .build()
         );
 
-        when(userService.getUsersSummaryBatch(ids)).thenReturn(expected);
+        when(userService.getUsersSummaryBatch(isNull(), eq(ids))).thenReturn(expected);
 
         ResponseEntity<List<UserSummaryDto>> response = userController.getUsersBatch(request);
 
@@ -69,6 +71,6 @@ class UserControllerBatchTest {
         assertThat(response.getBody()).isNotNull().hasSize(2);
         assertThat(response.getBody().get(0).getUsername()).isEqualTo("user1");
         assertThat(response.getBody().get(1).getUsername()).isEqualTo("user2");
-        verify(userService).getUsersSummaryBatch(ids);
+        verify(userService).getUsersSummaryBatch(isNull(), eq(ids));
     }
 }

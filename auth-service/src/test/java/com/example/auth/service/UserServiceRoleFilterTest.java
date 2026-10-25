@@ -152,4 +152,59 @@ class UserServiceRoleFilterTest {
         assertThat(response.getUsername()).isEqualTo("normal_user");
         assertThat(response.getRole()).isEqualTo("USER");
     }
+
+    @Test
+    @DisplayName("searchUsers with viewerId and blank query should delegate to findActiveStandardUsersWithoutViewerOrderByCreatedAtDesc")
+    void searchUsers_WithViewerId_BlankQuery_ShouldExcludeViewerAndBlocks() {
+        UUID viewerId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 10);
+        AuthUser user1 = createTestUser(UUID.randomUUID(), "john_doe", Role.USER, false);
+        Page<AuthUser> userPage = new PageImpl<>(List.of(user1));
+
+        when(userRepository.findActiveStandardUsersWithoutViewerOrderByCreatedAtDesc(Role.USER, viewerId, pageable)).thenReturn(userPage);
+
+        Page<UserProfileResponse> result = userService.searchUsers(viewerId, "", pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getUsername()).isEqualTo("john_doe");
+        verify(userRepository).findActiveStandardUsersWithoutViewerOrderByCreatedAtDesc(Role.USER, viewerId, pageable);
+    }
+
+    @Test
+    @DisplayName("searchUsers with viewerId and query should delegate to searchActiveStandardUsersWithoutViewer")
+    void searchUsers_WithViewerId_WithQuery_ShouldExcludeViewerAndBlocks() {
+        UUID viewerId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 10);
+        AuthUser user1 = createTestUser(UUID.randomUUID(), "alice", Role.USER, false);
+        Page<AuthUser> userPage = new PageImpl<>(List.of(user1));
+
+        when(userRepository.searchActiveStandardUsersWithoutViewer("alice", Role.USER, viewerId, pageable)).thenReturn(userPage);
+
+        Page<UserProfileResponse> result = userService.searchUsers(viewerId, "alice", pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getUsername()).isEqualTo("alice");
+        verify(userRepository).searchActiveStandardUsersWithoutViewer("alice", Role.USER, viewerId, pageable);
+    }
+
+    @Test
+    @DisplayName("getUsersSummaryBatch with viewerId should filter out viewer themselves and mutual blocked users")
+    void getUsersSummaryBatch_WithViewerId_ShouldFilterOutViewerAndBlockedUsers() {
+        UUID viewerId = UUID.randomUUID();
+        UUID u1 = UUID.randomUUID(); // Valid USER
+        UUID u2 = UUID.randomUUID(); // Blocked user
+
+        AuthUser selfUser = createTestUser(viewerId, "self", Role.USER, false);
+        AuthUser user1 = createTestUser(u1, "regular_user", Role.USER, false);
+        AuthUser user2 = createTestUser(u2, "blocked_user", Role.USER, false);
+
+        when(userRepository.findAllById(anySet())).thenReturn(List.of(selfUser, user1, user2));
+        when(userRoleRepository.findNonStandardRoleUserIds()).thenReturn(List.of());
+        when(blockRepository.findMutualBlockedUserIds(viewerId)).thenReturn(List.of(u2));
+
+        List<UserSummaryDto> summaries = userService.getUsersSummaryBatch(viewerId, List.of(viewerId, u1, u2));
+
+        assertThat(summaries).hasSize(1);
+        assertThat(summaries.get(0).getUsername()).isEqualTo("regular_user");
+    }
 }
