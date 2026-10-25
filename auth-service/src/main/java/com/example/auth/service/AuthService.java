@@ -235,8 +235,8 @@ public class AuthService {
                 user = new AuthUser();
                 user.setUsername(username);
                 user.setEmail(email);
-                // Random bcrypt password hash so local password login is disabled until reset
-                user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString() + "-" + UUID.randomUUID().toString()));
+                // Random bcrypt password hash so local password login is disabled until reset (BCrypt max 72 bytes)
+                user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
                 user.setDisplayName(fbName != null && !fbName.isBlank() ? fbName : username);
                 user.setAvatarUrl(fbAvatar);
                 user.setRole(Role.USER);
