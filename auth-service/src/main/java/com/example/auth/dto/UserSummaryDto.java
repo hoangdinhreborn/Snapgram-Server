@@ -18,6 +18,7 @@ public class UserSummaryDto {
     private String username;
     private String displayName;
     private String avatarUrl;
+    private String role;
     private boolean privateAccount;
     /** Blue Tick còn hiệu lực — để content-service hiển thị huy hiệu cạnh tên tác giả. */
     private boolean verified;

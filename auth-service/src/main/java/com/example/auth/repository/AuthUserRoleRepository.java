@@ -16,6 +16,12 @@ public interface AuthUserRoleRepository extends JpaRepository<AuthUserRole, UUID
     @Query("SELECT r.userId FROM AuthUserRole r WHERE UPPER(r.role) = UPPER(:role)")
     List<UUID> findUserIdsByRole(@Param("role") String role);
 
+    @Query("SELECT DISTINCT r.userId FROM AuthUserRole r WHERE UPPER(r.role) != 'USER'")
+    List<UUID> findNonStandardRoleUserIds();
+
+    @Query("SELECT COUNT(r) > 0 FROM AuthUserRole r WHERE r.userId = :userId AND UPPER(r.role) != 'USER'")
+    boolean hasNonStandardRole(@Param("userId") UUID userId);
+
     boolean existsByUserIdAndRole(UUID userId, String role);
 
     void deleteByUserIdAndRole(UUID userId, String role);

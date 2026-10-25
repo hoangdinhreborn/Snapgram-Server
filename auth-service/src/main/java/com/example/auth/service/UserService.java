@@ -4,11 +4,13 @@ import com.example.auth.dto.*;
 import com.example.auth.entity.AuthBlock;
 import com.example.auth.entity.AuthNote;
 import com.example.auth.entity.AuthUser;
+import com.example.auth.entity.Role;
 import com.example.auth.exception.UserNotFoundException;
 import com.example.auth.repository.AuthBlockRepository;
 import com.example.auth.repository.AuthNoteRepository;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
+import com.example.auth.repository.AuthUserRoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,6 +33,7 @@ public class UserService {
     private static final String TOPIC_USER_EVENTS = "user.events";
 
     private final AuthUserRepository userRepository;
+    private final AuthUserRoleRepository userRoleRepository;
     private final AuthBlockRepository blockRepository;
     private final AuthNoteRepository noteRepository;
     private final AuthRefreshTokenRepository refreshTokenRepository;
@@ -61,12 +64,21 @@ public class UserService {
                     }
                 });
 
+        boolean isSelf = viewerId != null && viewerId.equals(target.getId());
+
+        // Target must be an active standard USER account when viewed by others
+        if (!isSelf) {
+            if (target.isBanned() || target.getRole() != Role.USER || userRoleRepository.hasNonStandardRole(target.getId())) {
+                throw new UserNotFoundException("User not found");
+            }
+        }
+
         // If either side has blocked the other → 404
         if (viewerId != null && isMutuallyBlocked(viewerId, target.getId())) {
             throw new UserNotFoundException("User not found");
         }
 
-        return toPublicProfile(target, viewerId != null && viewerId.equals(target.getId()));
+        return toPublicProfile(target, isSelf);
     }
 
     /** PATCH — only update fields that are non-null in the request. */
@@ -86,26 +98,30 @@ public class UserService {
         return toFullProfile(user);
     }
 
-    /** Search users by username / displayName (paginated). Returns recent active users if query is blank. */
+    /** Search users by username / displayName (paginated). Returns recent active users if query is blank. Only standard USER role accounts are returned. */
     @Transactional(readOnly = true)
     public Page<UserProfileResponse> searchUsers(String q, Pageable pageable) {
         if (q == null || q.trim().isEmpty()) {
-            return userRepository.findByBannedFalseOrderByCreatedAtDesc(pageable)
+            return userRepository.findActiveStandardUsersOrderByCreatedAtDesc(Role.USER, pageable)
                     .map(u -> UserProfileResponse.builder()
                             .id(u.getId().toString())
                             .username(u.getUsername())
                             .displayName(u.getDisplayName())
                             .avatarUrl(u.getAvatarUrl())
+                            .role(u.getRole() != null ? u.getRole().name() : "USER")
                             .privateAccount(u.isPrivateAccount())
+                            .verified(isVerifiedActive(u))
+                            .verifiedUntil(u.getVerifiedUntil())
                             .createdAt(u.getCreatedAt())
                             .build());
         }
-        return userRepository.searchByUsernameOrDisplayName(q.trim(), pageable)
+        return userRepository.searchActiveStandardUsers(q.trim(), Role.USER, pageable)
                 .map(u -> UserProfileResponse.builder()
                         .id(u.getId().toString())
                         .username(u.getUsername())
                         .displayName(u.getDisplayName())
                         .avatarUrl(u.getAvatarUrl())
+                        .role(u.getRole() != null ? u.getRole().name() : "USER")
                         .privateAccount(u.isPrivateAccount())
                         .verified(isVerifiedActive(u))
                         .verifiedUntil(u.getVerifiedUntil())
@@ -113,7 +129,7 @@ public class UserService {
                         .build());
     }
 
-    /** Batch retrieve public user summaries by IDs. */
+    /** Batch retrieve public user summaries by IDs. Only active standard USER role accounts are returned. */
     @Transactional(readOnly = true)
     public List<UserSummaryDto> getUsersSummaryBatch(List<UUID> userIds) {
         if (userIds == null || userIds.isEmpty()) {
@@ -121,13 +137,17 @@ public class UserService {
         }
         Set<UUID> uniqueIds = new HashSet<>(userIds);
         List<AuthUser> users = userRepository.findAllById(uniqueIds);
+        List<UUID> nonStandardUserIds = userRoleRepository.findNonStandardRoleUserIds();
+        Set<UUID> excludedIds = new HashSet<>(nonStandardUserIds);
+
         return users.stream()
-                .filter(u -> !u.isBanned())
+                .filter(u -> !u.isBanned() && u.getRole() == Role.USER && !excludedIds.contains(u.getId()))
                 .map(u -> UserSummaryDto.builder()
                         .id(u.getId().toString())
                         .username(u.getUsername())
                         .displayName(u.getDisplayName())
                         .avatarUrl(u.getAvatarUrl())
+                        .role(u.getRole() != null ? u.getRole().name() : "USER")
                         .privateAccount(u.isPrivateAccount())
                         .verified(isVerifiedActive(u))
                         .verifiedUntil(u.getVerifiedUntil())
@@ -371,6 +391,7 @@ public class UserService {
                 .email(u.getEmail())
                 .displayName(u.getDisplayName())
                 .avatarUrl(u.getAvatarUrl())
+                .role(u.getRole() != null ? u.getRole().name() : "USER")
                 .bio(u.getBio())
                 .website(u.getWebsite())
                 .pronouns(u.getPronouns())
@@ -394,6 +415,7 @@ public class UserService {
                 .username(u.getUsername())
                 .displayName(u.getDisplayName())
                 .avatarUrl(u.getAvatarUrl())
+                .role(u.getRole() != null ? u.getRole().name() : "USER")
                 .privateAccount(u.isPrivateAccount())
                 .verified(isVerifiedActive(u))
                 .verifiedUntil(u.getVerifiedUntil())

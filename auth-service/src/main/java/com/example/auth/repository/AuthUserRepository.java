@@ -42,6 +42,29 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, UUID>, JpaSp
 
     Page<AuthUser> findByBannedFalseOrderByCreatedAtDesc(Pageable pageable);
 
+    @Query(
+            value = """
+                    SELECT u FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                    ORDER BY u.createdAt DESC
+                    """,
+            countQuery = """
+                    SELECT count(u) FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                    """
+    )
+    Page<AuthUser> findActiveStandardUsersOrderByCreatedAtDesc(@Param("role") Role role, Pageable pageable);
+
     /**
      * Full-text search on username and display_name using PostgreSQL trigram index.
      * Results ordered by relevance (similarity to query string).
@@ -53,4 +76,35 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, UUID>, JpaSp
             ORDER BY u.username ASC
             """)
     Page<AuthUser> searchByUsernameOrDisplayName(@Param("q") String q, Pageable pageable);
+
+    @Query(
+            value = """
+                    SELECT u FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                      AND (
+                          LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%'))
+                          OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :q, '%'))
+                      )
+                    ORDER BY u.username ASC
+                    """,
+            countQuery = """
+                    SELECT count(u) FROM AuthUser u
+                    WHERE u.banned = false
+                      AND u.role = :role
+                      AND NOT EXISTS (
+                          SELECT 1 FROM AuthUserRole ur
+                          WHERE ur.userId = u.id AND UPPER(ur.role) != 'USER'
+                      )
+                      AND (
+                          LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%'))
+                          OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :q, '%'))
+                      )
+                    """
+    )
+    Page<AuthUser> searchActiveStandardUsers(@Param("q") String q, @Param("role") Role role, Pageable pageable);
 }
