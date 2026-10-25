@@ -264,4 +264,31 @@ class ChatServiceTest {
         assertThatThrownBy(() -> chatService.getConversation(conversationId, me))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    @DisplayName("Gửi tin cho người dùng đã bị chặn/chặn mình ném NotFoundException với thông điệp Người dùng không tồn tại")
+    void sendMessageRejectsWhenMutuallyBlocked() {
+        when(memberRepository.existsByConversationIdAndUserIdAndLeftAtIsNull(conversationId, me)).thenReturn(true);
+        when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(conversation()));
+        when(memberRepository.findByConversationIdAndLeftAtIsNull(conversationId))
+                .thenReturn(List.of(member(me), member(partner)));
+        when(authServiceClient.isMutuallyBlocked(me, partner)).thenReturn(true);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setContent("Chào bạn");
+
+        assertThatThrownBy(() -> chatService.sendMessage(conversationId, me, request))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("Người dùng không tồn tại");
+    }
+
+    @Test
+    @DisplayName("Tạo hội thoại trực tiếp với người dùng đã bị chặn ném NotFoundException với thông điệp Người dùng không tồn tại")
+    void createDirectConversationRejectsWhenMutuallyBlocked() {
+        when(authServiceClient.isMutuallyBlocked(me, partner)).thenReturn(true);
+
+        assertThatThrownBy(() -> chatService.getOrCreateDirectConversation(me, partner))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("Người dùng không tồn tại");
+    }
 }

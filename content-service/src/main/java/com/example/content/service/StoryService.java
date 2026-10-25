@@ -107,8 +107,12 @@ public class StoryService {
     @Transactional(readOnly = true)
     public Page<StoryResponse> getStoryFeed(UUID userId, Pageable pageable) {
         List<UUID> followingIds = followRepository.findAcceptedFollowingIds(userId);
-        List<UUID> authorIds = new ArrayList<>(followingIds);
+        List<UUID> blockedIds = authServiceClient.getMutualBlockedUserIds(userId);
+        List<UUID> authorIds = new ArrayList<>();
         authorIds.add(userId);
+        followingIds.stream()
+                .filter(id -> !blockedIds.contains(id))
+                .forEach(authorIds::add);
 
         List<Visibility> visibilities = List.of(Visibility.PUBLIC, Visibility.FOLLOWERS);
         Page<Story> page = storyRepository.findActiveStoriesForFeed(authorIds, Instant.now(), visibilities, pageable);
@@ -158,6 +162,10 @@ public class StoryService {
     public void viewStory(UUID storyId, UUID viewerId) {
         Story story = storyRepository.findById(storyId)
                 .orElseThrow(() -> new ContentNotFoundException("Story not found"));
+
+        if (viewerId != null && authServiceClient.isMutuallyBlocked(viewerId, story.getAuthorId())) {
+            throw new ContentNotFoundException("Story not found");
+        }
 
         if (story.getExpiresAt().isBefore(Instant.now())) return;
         if (story.getAuthorId().equals(viewerId)) return; // Don't record author's own view

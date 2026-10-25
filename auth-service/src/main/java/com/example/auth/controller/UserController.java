@@ -72,6 +72,20 @@ public class UserController {
         return ResponseEntity.ok(userService.getUsersSummaryBatch(optionalCurrentUserId(), request.getUserIds()));
     }
 
+    /** GET /api/users/internal/is-blocked?userA=...&userB=... */
+    @GetMapping("/internal/is-blocked")
+    public ResponseEntity<Boolean> isMutuallyBlocked(
+            @RequestParam UUID userA,
+            @RequestParam UUID userB) {
+        return ResponseEntity.ok(userService.isMutuallyBlocked(userA, userB));
+    }
+
+    /** GET /api/users/internal/mutual-blocks/{userId} */
+    @GetMapping("/internal/mutual-blocks/{userId}")
+    public ResponseEntity<java.util.List<UUID>> getMutualBlockedUserIds(@PathVariable UUID userId) {
+        return ResponseEntity.ok(userService.getMutualBlockedUserIds(userId));
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Privacy
     // ─────────────────────────────────────────────────────────────

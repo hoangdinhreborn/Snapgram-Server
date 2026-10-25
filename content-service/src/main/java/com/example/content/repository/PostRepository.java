@@ -36,6 +36,34 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
             @Param("visibility") Visibility visibility,
             Pageable pageable);
 
+    @Query("""
+            SELECT p FROM Post p
+            WHERE p.contentType IN :contentTypes
+              AND p.status = :status
+              AND p.visibility = :visibility
+              AND p.authorId NOT IN :excludedAuthorIds
+            ORDER BY p.createdAt DESC
+            """)
+    Page<Post> findReelsExcludingAuthors(
+            @Param("contentTypes") List<com.example.content.entity.PostType> contentTypes,
+            @Param("status") PostStatus status,
+            @Param("visibility") Visibility visibility,
+            @Param("excludedAuthorIds") List<UUID> excludedAuthorIds,
+            Pageable pageable);
+
+    @Query("""
+            SELECT p FROM Post p
+            WHERE p.status = :status
+              AND p.visibility = :visibility
+              AND p.authorId NOT IN :excludedAuthorIds
+            ORDER BY p.createdAt DESC
+            """)
+    Page<Post> findPublicPostsExcludingAuthors(
+            @Param("status") PostStatus status,
+            @Param("visibility") Visibility visibility,
+            @Param("excludedAuthorIds") List<UUID> excludedAuthorIds,
+            Pageable pageable);
+
     /** Feed: posts from a list of following user IDs + own, not deleted, with visibility filter */
     @Query("""
             SELECT p FROM Post p

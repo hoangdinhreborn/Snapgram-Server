@@ -60,6 +60,9 @@ public class ChatService {
         if (currentUserId.equals(targetUserId)) {
             throw new IllegalArgumentException("Không thể tạo hội thoại với chính mình");
         }
+        if (authServiceClient.isMutuallyBlocked(currentUserId, targetUserId)) {
+            throw new NotFoundException("Người dùng không tồn tại");
+        }
 
         List<Conversation> existing = conversationRepository.findDirectConversation(currentUserId, targetUserId);
         if (!existing.isEmpty()) {
@@ -205,6 +208,18 @@ public class ChatService {
             throw new IllegalArgumentException("Nội dung tin nhắn không được để trống");
         }
 
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hội thoại"));
+
+        List<ConversationMember> members = memberRepository.findByConversationIdAndLeftAtIsNull(conversationId);
+        for (ConversationMember member : members) {
+            if (!member.getUserId().equals(senderId)) {
+                if (authServiceClient.isMutuallyBlocked(senderId, member.getUserId())) {
+                    throw new NotFoundException("Người dùng không tồn tại");
+                }
+            }
+        }
+
         Message message = Message.builder()
                 .conversationId(conversationId)
                 .senderId(senderId)
@@ -214,13 +229,10 @@ public class ChatService {
                 .build();
         Message saved = messageRepository.save(message);
 
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy hội thoại"));
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
 
         MessageResponse response = toMessageResponse(saved);
-        List<ConversationMember> members = memberRepository.findByConversationIdAndLeftAtIsNull(conversationId);
 
         // Realtime cho các tab đang mở
         realtimeService.broadcastMessage(response);
@@ -305,6 +317,14 @@ public class ChatService {
 
     public void sendTyping(UUID conversationId, UUID userId, String username, boolean typing) {
         requireMember(conversationId, userId);
+        List<ConversationMember> members = memberRepository.findByConversationIdAndLeftAtIsNull(conversationId);
+        for (ConversationMember member : members) {
+            if (!member.getUserId().equals(userId)) {
+                if (authServiceClient.isMutuallyBlocked(userId, member.getUserId())) {
+                    return;
+                }
+            }
+        }
         realtimeService.broadcastTyping(conversationId, userId, username, typing);
     }
 

@@ -46,6 +46,9 @@ class NotificationConsumerServiceTest {
         @Mock
         private NotificationEventProcessingService eventProcessingService;
 
+        @Mock
+        private com.example.notification.client.AuthServiceClient authServiceClient;
+
     @InjectMocks
     private NotificationConsumerService notificationConsumerService;
 
@@ -323,6 +326,7 @@ class NotificationConsumerServiceTest {
                                 notificationRepository,
                                 pushOutboxRepository,
                                 new ObjectMapper(),
-                                eventProcessingService);
+                                eventProcessingService,
+                                authServiceClient);
         }
 }

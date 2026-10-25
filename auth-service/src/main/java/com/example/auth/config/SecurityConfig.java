@@ -55,6 +55,7 @@ public class SecurityConfig {
                                 "/api/auth/admin/bootstrap",
                                 "/api/users/search",
                                 "/api/users/batch",
+                                "/api/users/internal/**",
                                 "/actuator/health",
                                 // Swagger UI
                                 "/swagger-ui.html",

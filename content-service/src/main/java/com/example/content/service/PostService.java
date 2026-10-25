@@ -313,6 +313,9 @@ public class PostService {
 
     @Transactional(readOnly = true)
     public Page<PostResponse> getUserPosts(UUID targetUserId, UUID requesterId, Pageable pageable) {
+        if (requesterId != null && authServiceClient.isMutuallyBlocked(requesterId, targetUserId)) {
+            return new org.springframework.data.domain.PageImpl<>(Collections.emptyList(), pageable, 0);
+        }
         List<Visibility> visibilities = resolveVisibilities(targetUserId, requesterId);
         Page<Post> postsPage = postRepository.findPublicPostsByAuthor(targetUserId, PostStatus.DELETED, visibilities, pageable);
         return enrichPageWithMedia(postsPage, requesterId);
@@ -320,6 +323,8 @@ public class PostService {
 
     @Transactional(readOnly = true)
     public Page<PostResponse> getFeed(UUID userId, Pageable pageable) {
+        List<UUID> blockedIds = userId != null ? authServiceClient.getMutualBlockedUserIds(userId) : Collections.emptyList();
+
         // Try getting recommended order from recommender-service
         List<com.example.content.client.RecommenderClient.RecommendedItem> recs =
                 recommenderClient.getPersonalFeedRecommendations(userId, pageable.getPageNumber(), pageable.getPageSize());
@@ -340,7 +345,7 @@ public class PostService {
             List<Post> orderedPosts = new ArrayList<>();
             for (UUID id : postIds) {
                 Post p = postMap.get(id);
-                if (p != null && p.getStatus() != PostStatus.DELETED) {
+                if (p != null && p.getStatus() != PostStatus.DELETED && !blockedIds.contains(p.getAuthorId())) {
                     orderedPosts.add(p);
                 }
             }
@@ -359,7 +364,7 @@ public class PostService {
         List<UUID> authorIds = new ArrayList<>();
         authorIds.add(userId);
         followingIds.stream()
-                .filter(id -> !mutedIds.contains(id))
+                .filter(id -> !mutedIds.contains(id) && !blockedIds.contains(id))
                 .forEach(authorIds::add);
 
         Page<Post> postsPage;
@@ -373,7 +378,9 @@ public class PostService {
         // If following + own posts are empty (e.g. newly registered user who hasn't posted or following accounts haven't posted),
         // fallback to public posts so that the feed is never blank
         if (postsPage.isEmpty()) {
-            postsPage = postRepository.findByStatusAndVisibilityOrderByCreatedAtDesc(PostStatus.PUBLISHED, Visibility.PUBLIC, pageable);
+            postsPage = blockedIds.isEmpty()
+                    ? postRepository.findByStatusAndVisibilityOrderByCreatedAtDesc(PostStatus.PUBLISHED, Visibility.PUBLIC, pageable)
+                    : postRepository.findPublicPostsExcludingAuthors(PostStatus.PUBLISHED, Visibility.PUBLIC, blockedIds, pageable);
         }
 
         return enrichPageWithMedia(postsPage, userId);
@@ -385,15 +392,25 @@ public class PostService {
      */
     @Transactional(readOnly = true)
     public Page<PostResponse> getReels(UUID requesterId, Pageable pageable) {
-        Page<Post> reels = postRepository.findReels(
-                List.of(PostType.REEL, PostType.VIDEO),
-                PostStatus.PUBLISHED,
-                Visibility.PUBLIC,
-                pageable);
+        List<UUID> blockedIds = requesterId != null ? authServiceClient.getMutualBlockedUserIds(requesterId) : Collections.emptyList();
+        Page<Post> reels = blockedIds.isEmpty()
+                ? postRepository.findReels(
+                        List.of(PostType.REEL, PostType.VIDEO),
+                        PostStatus.PUBLISHED,
+                        Visibility.PUBLIC,
+                        pageable)
+                : postRepository.findReelsExcludingAuthors(
+                        List.of(PostType.REEL, PostType.VIDEO),
+                        PostStatus.PUBLISHED,
+                        Visibility.PUBLIC,
+                        blockedIds,
+                        pageable);
         return enrichPageWithMedia(reels, requesterId);
     }
 
     public Page<PostResponse> getExplorePosts(UUID requesterId, Pageable pageable) {
+        List<UUID> blockedIds = requesterId != null ? authServiceClient.getMutualBlockedUserIds(requesterId) : Collections.emptyList();
+
         // Try getting recommended order from recommender-service
         List<com.example.content.client.RecommenderClient.RecommendedItem> recs =
                 recommenderClient.getExploreFeedRecommendations(requesterId, pageable.getPageNumber(), pageable.getPageSize());
@@ -414,7 +431,7 @@ public class PostService {
             List<Post> orderedPosts = new ArrayList<>();
             for (UUID id : postIds) {
                 Post p = postMap.get(id);
-                if (p != null && p.getStatus() == PostStatus.PUBLISHED && p.getVisibility() == Visibility.PUBLIC) {
+                if (p != null && p.getStatus() == PostStatus.PUBLISHED && p.getVisibility() == Visibility.PUBLIC && !blockedIds.contains(p.getAuthorId())) {
                     orderedPosts.add(p);
                 }
             }
@@ -426,8 +443,11 @@ public class PostService {
             }
         }
 
-        Page<Post> postsPage = postRepository.findByStatusAndVisibilityOrderByCreatedAtDesc(
-                PostStatus.PUBLISHED, Visibility.PUBLIC, pageable);
+        Page<Post> postsPage = blockedIds.isEmpty()
+                ? postRepository.findByStatusAndVisibilityOrderByCreatedAtDesc(
+                        PostStatus.PUBLISHED, Visibility.PUBLIC, pageable)
+                : postRepository.findPublicPostsExcludingAuthors(
+                        PostStatus.PUBLISHED, Visibility.PUBLIC, blockedIds, pageable);
         return enrichPageWithMedia(postsPage, requesterId);
     }
 
@@ -520,6 +540,9 @@ public class PostService {
 
     private void checkVisibility(Post post, UUID requesterId) {
         if (post.getAuthorId().equals(requesterId)) return;
+        if (requesterId != null && authServiceClient.isMutuallyBlocked(requesterId, post.getAuthorId())) {
+            throw new ContentNotFoundException("Post not found");
+        }
         if (post.getVisibility() == Visibility.PRIVATE) {
             throw new AccessDeniedException("This post is private");
         }

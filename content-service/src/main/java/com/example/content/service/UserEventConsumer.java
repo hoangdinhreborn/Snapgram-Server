@@ -75,7 +75,21 @@ public class UserEventConsumer {
                         UUID blockerId = UUID.fromString(blockerIdStr);
                         UUID blockedId = UUID.fromString(blockedIdStr);
                         followService.removeMutualFollow(blockerId, blockedId);
-                        log.info("Removed mutual follow between {} and {} on USER_BLOCKED", blockerId, blockedId);
+                        authServiceClient.evictBlockCache(blockerId, blockedId);
+                        evictPostCache();
+                        log.info("Removed mutual follow and evicted block cache between {} and {} on USER_BLOCKED", blockerId, blockedId);
+                    }
+                }
+                case "USER_UNBLOCKED" -> {
+                    String blockerIdStr = (String) payload.get("blockerId");
+                    String blockedIdStr = (String) payload.get("blockedId");
+
+                    if (blockerIdStr != null && blockedIdStr != null) {
+                        UUID blockerId = UUID.fromString(blockerIdStr);
+                        UUID blockedId = UUID.fromString(blockedIdStr);
+                        authServiceClient.evictBlockCache(blockerId, blockedId);
+                        evictPostCache();
+                        log.info("Evicted block cache between {} and {} on USER_UNBLOCKED", blockerId, blockedId);
                     }
                 }
                 case "BLUE_TICK_CHANGED" -> {

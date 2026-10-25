@@ -28,6 +28,7 @@ public class HighlightService {
     private final HighlightRepository highlightRepository;
     private final HighlightItemRepository highlightItemRepository;
     private final StoryRepository storyRepository;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
 
     @Transactional
     public HighlightResponse createHighlight(UUID userId, CreateHighlightRequest request) {
@@ -69,7 +70,10 @@ public class HighlightService {
     }
 
     @Transactional(readOnly = true)
-    public List<HighlightResponse> getUserHighlights(UUID userId) {
+    public List<HighlightResponse> getUserHighlights(UUID userId, UUID viewerId) {
+        if (viewerId != null && authServiceClient.isMutuallyBlocked(viewerId, userId)) {
+            return Collections.emptyList();
+        }
         List<Highlight> highlights = highlightRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return highlights.stream().map(h -> {
             List<HighlightItem> items = highlightItemRepository.findByIdHighlightIdOrderByCreatedAtDesc(h.getId());
@@ -91,9 +95,13 @@ public class HighlightService {
     }
 
     @Transactional(readOnly = true)
-    public HighlightDetailResponse getHighlightDetail(UUID highlightId) {
+    public HighlightDetailResponse getHighlightDetail(UUID highlightId, UUID viewerId) {
         Highlight highlight = highlightRepository.findById(highlightId)
                 .orElseThrow(() -> new ContentNotFoundException("Highlight not found"));
+
+        if (viewerId != null && authServiceClient.isMutuallyBlocked(viewerId, highlight.getUserId())) {
+            throw new ContentNotFoundException("Highlight not found");
+        }
 
         List<HighlightItem> items = highlightItemRepository.findByIdHighlightIdOrderByCreatedAtDesc(highlightId);
 

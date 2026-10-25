@@ -34,13 +34,15 @@ public class HighlightController {
     @Operation(summary = "Lấy danh sách tin nổi bật của một người dùng")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<HighlightResponse>> getUserHighlights(@PathVariable UUID userId) {
-        return ResponseEntity.ok(highlightService.getUserHighlights(userId));
+        UUID viewerId = UserContext.getOptionalCurrentUserId();
+        return ResponseEntity.ok(highlightService.getUserHighlights(userId, viewerId));
     }
 
     @Operation(summary = "Xem chi tiết tin nổi bật kèm danh sách story")
     @GetMapping("/{id}")
     public ResponseEntity<HighlightDetailResponse> getHighlightDetail(@PathVariable UUID id) {
-        return ResponseEntity.ok(highlightService.getHighlightDetail(id));
+        UUID viewerId = UserContext.getOptionalCurrentUserId();
+        return ResponseEntity.ok(highlightService.getHighlightDetail(id, viewerId));
     }
 
     @Operation(summary = "Thêm story vào tin nổi bật")

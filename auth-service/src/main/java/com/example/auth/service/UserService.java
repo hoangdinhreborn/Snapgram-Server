@@ -380,10 +380,17 @@ public class UserService {
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 
-    private boolean isMutuallyBlocked(UUID a, UUID b) {
+    @Transactional(readOnly = true)
+    public boolean isMutuallyBlocked(UUID a, UUID b) {
         if (a == null || b == null) return false;
         return blockRepository
                 .existsByBlockerIdAndBlockedIdOrBlockerIdAndBlockedId(a, b, b, a);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> getMutualBlockedUserIds(UUID userId) {
+        if (userId == null) return List.of();
+        return blockRepository.findMutualBlockedUserIds(userId);
     }
 
     private void revokeAllRefreshTokens(UUID userId) {

@@ -22,6 +22,8 @@ public class AuthServiceClient {
 
     private final RestClient restClient;
     private final Map<UUID, CachedUserSummary> summaryCache = new ConcurrentHashMap<>();
+    private final Map<String, CachedBlockStatus> blockStatusCache = new ConcurrentHashMap<>();
+    private final Map<UUID, CachedBlockedIds> blockedIdsCache = new ConcurrentHashMap<>();
     private static final long CACHE_TTL_SECONDS = 60; // 1 phút — hạ từ 300s để badge cập nhật nhanh
     /**
      * Xoá cache hồ sơ của một user — gọi khi nhận được event thay đổi hồ sơ
@@ -33,8 +35,70 @@ public class AuthServiceClient {
         }
     }
 
+    public void evictBlockCache(UUID blockerId, UUID blockedId) {
+        if (blockerId != null) blockedIdsCache.remove(blockerId);
+        if (blockedId != null) blockedIdsCache.remove(blockedId);
+        if (blockerId != null && blockedId != null) {
+            blockStatusCache.remove(blockPairKey(blockerId, blockedId));
+        }
+    }
+
+    private String blockPairKey(UUID a, UUID b) {
+        return a.compareTo(b) < 0 ? a + ":" + b : b + ":" + a;
+    }
+
+    public boolean isMutuallyBlocked(UUID userA, UUID userB) {
+        if (userA == null || userB == null) return false;
+        if (userA.equals(userB)) return false;
+
+        String key = blockPairKey(userA, userB);
+        Instant now = Instant.now();
+        CachedBlockStatus cached = blockStatusCache.get(key);
+        if (cached != null && cached.expiresAt.isAfter(now)) {
+            return cached.blocked;
+        }
+
+        try {
+            Boolean blocked = restClient.get()
+                    .uri("/api/users/internal/is-blocked?userA={a}&userB={b}", userA, userB)
+                    .retrieve()
+                    .body(Boolean.class);
+            boolean isBlocked = Boolean.TRUE.equals(blocked);
+            blockStatusCache.put(key, new CachedBlockStatus(isBlocked, now.plusSeconds(CACHE_TTL_SECONDS)));
+            return isBlocked;
+        } catch (Exception e) {
+            log.warn("Lỗi kiểm tra block từ auth-service: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public List<UUID> getMutualBlockedUserIds(UUID userId) {
+        if (userId == null) return Collections.emptyList();
+
+        Instant now = Instant.now();
+        CachedBlockedIds cached = blockedIdsCache.get(userId);
+        if (cached != null && cached.expiresAt.isAfter(now)) {
+            return cached.ids;
+        }
+
+        try {
+            List<UUID> ids = restClient.get()
+                    .uri("/api/users/internal/mutual-blocks/{userId}", userId)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<UUID>>() {});
+            List<UUID> result = ids != null ? ids : Collections.emptyList();
+            blockedIdsCache.put(userId, new CachedBlockedIds(result, now.plusSeconds(CACHE_TTL_SECONDS)));
+            return result;
+        } catch (Exception e) {
+            log.warn("Lỗi lấy danh sách blocked ids từ auth-service: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
     public void evictAll() {
         summaryCache.clear();
+        blockStatusCache.clear();
+        blockedIdsCache.clear();
     }
 
     public AuthServiceClient(@Value("${app.auth.url:http://localhost:8081}") String authUrl) {
@@ -106,6 +170,8 @@ public class AuthServiceClient {
     }
 
     private record CachedUserSummary(UserSummary summary, Instant expiresAt) {}
+    private record CachedBlockStatus(boolean blocked, Instant expiresAt) {}
+    private record CachedBlockedIds(List<UUID> ids, Instant expiresAt) {}
 
     @Data
     @Builder
