@@ -206,14 +206,6 @@ services:
       timeout: 5s
       retries: 12
 
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: snapgram-mailpit
-    restart: unless-stopped
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: snapgram-kafka-ui
@@ -244,8 +236,11 @@ services:
       DB_URL: jdbc:postgresql://postgres-auth:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
+      # GOOGLE_MAIL_USERNAME / GOOGLE_MAIL_PASSWORD lay tu env_file ../.env
+      # khong khai bao ${...} o day vi compose noi suy tu shell (trong) va de len env_file.
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       postgres-auth:
         condition: service_healthy
@@ -253,8 +248,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s
@@ -406,8 +399,6 @@ services:
       DB_URL: jdbc:postgresql://postgres-notification:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
     depends_on:
       postgres-notification:
         condition: service_healthy
@@ -415,8 +406,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8086/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s

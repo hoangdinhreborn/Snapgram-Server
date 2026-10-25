@@ -18,6 +18,10 @@ app:
     access-token-ttl: ${SNAPGRAM_JWT_ACCESS_TOKEN_TTL:15m}
     admin-access-token-ttl: ${SNAPGRAM_JWT_ADMIN_ACCESS_TOKEN_TTL:30m}
     refresh-token-ttl: ${SNAPGRAM_JWT_REFRESH_TOKEN_TTL:30d}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  mail:
+    from: ${GOOGLE_MAIL_USERNAME:}
+    from-name: "Snapgram"
 spring:
   application:
     name: auth-service
@@ -32,6 +36,23 @@ spring:
     basename: messages
     encoding: UTF-8
     fallback-to-system-locale: false
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${GOOGLE_MAIL_USERNAME:}
+    password: ${GOOGLE_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/snapgram}
     username: ${DB_USER:snapgram}
@@ -71,6 +92,9 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    mail:
+      enabled: false
 
 logging:
   level:

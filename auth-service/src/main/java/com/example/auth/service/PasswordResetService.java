@@ -36,8 +36,7 @@ public class PasswordResetService {
     private final AuthPasswordResetRepository resetRepository;
     private final AuthRefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
-    // TODO: inject MailService when implemented
-    // private final MailService mailService;
+    private final MailService mailService;
 
     // ─────────────────────────────────────────────────────────────
     // Step 1 — Request reset
@@ -65,8 +64,8 @@ public class PasswordResetService {
             reset.setIpAddress(ipAddress);
             resetRepository.save(reset);
 
-            // TODO: mailService.sendPasswordResetEmail(user.getEmail(), rawToken);
-            log.info("[DEV] Password reset token for {} → {} (expires {})", user.getEmail(), rawToken, expiresAt);
+            mailService.sendPasswordResetEmail(user.getEmail(), rawToken);
+            log.info("Password reset requested and email queued for {} (expires {})", user.getEmail(), expiresAt);
         });
     }
 

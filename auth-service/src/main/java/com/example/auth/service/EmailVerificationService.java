@@ -30,8 +30,7 @@ public class EmailVerificationService {
     private final AuthUserRepository userRepository;
     private final AuthEmailVerificationRepository verificationRepository;
     private final PasswordEncoder passwordEncoder;
-    // TODO: inject MailService when implemented
-    // private final MailService mailService;
+    private final MailService mailService;
 
     // ─────────────────────────────────────────────────────────────
     // Send verification email (current email)
@@ -141,9 +140,9 @@ public class EmailVerificationService {
         record.setExpiresAt(expiresAt);
         verificationRepository.save(record);
 
-        // TODO: mailService.sendVerificationEmail(newEmail != null ? newEmail : user.getEmail(), rawToken);
-        log.info("[DEV] Email verification token for {} → {} (expires {})",
-                newEmail != null ? newEmail : user.getEmail(), rawToken, expiresAt);
+        String targetEmail = newEmail != null ? newEmail : user.getEmail();
+        mailService.sendVerificationEmail(targetEmail, rawToken);
+        log.info("Email verification token sent to {} (expires {})", targetEmail, expiresAt);
     }
 
     private void validateToken(AuthEmailVerification record) {
