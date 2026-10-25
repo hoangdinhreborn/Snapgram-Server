@@ -28,4 +28,8 @@ public interface StoryRepository extends JpaRepository<Story, UUID> {
                                          Pageable pageable);
 
     List<Story> findByAuthorIdAndExpiresAtAfterOrderByCreatedAtDesc(UUID authorId, Instant now);
+
+    Page<Story> findByAuthorIdAndExpiresAtLessThanEqualOrderByCreatedAtDesc(UUID authorId, Instant now, Pageable pageable);
+
+    Page<Story> findByAuthorIdOrderByCreatedAtDesc(UUID authorId, Pageable pageable);
 }

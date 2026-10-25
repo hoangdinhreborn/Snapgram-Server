@@ -122,6 +122,26 @@ public class StoryService {
         ));
     }
 
+    @Transactional(readOnly = true)
+    public Page<StoryResponse> getMyArchivedStories(UUID userId, Pageable pageable) {
+        Page<Story> page = storyRepository.findByAuthorIdAndExpiresAtLessThanEqualOrderByCreatedAtDesc(
+                userId, Instant.now(), pageable
+        );
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(userId);
+        return page.map(s -> {
+            StoryResponse res = toResponse(s, true, author);
+            // Expired archived stories are strictly private to the user
+            return res;
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StoryResponse> getMyAllStories(UUID userId, Pageable pageable) {
+        Page<Story> page = storyRepository.findByAuthorIdOrderByCreatedAtDesc(userId, pageable);
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(userId);
+        return page.map(s -> toResponse(s, true, author));
+    }
+
     @Transactional
     public void deleteStory(UUID storyId, UUID authorId) {
         Story story = storyRepository.findById(storyId)

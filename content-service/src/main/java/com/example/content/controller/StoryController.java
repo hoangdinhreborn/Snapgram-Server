@@ -42,6 +42,26 @@ public class StoryController {
         return ResponseEntity.ok(storyService.getStoryFeed(userId, PageRequest.of(page, size)));
     }
 
+    @Operation(summary = "Kho lưu trữ story đã hết hạn của tôi")
+    @GetMapping("/archive")
+    public ResponseEntity<Page<StoryResponse>> getMyArchivedStories(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        UUID userId = UserContext.getCurrentUserId();
+        size = Math.min(size, 50);
+        return ResponseEntity.ok(storyService.getMyArchivedStories(userId, PageRequest.of(page, size)));
+    }
+
+    @Operation(summary = "Toàn bộ story của tôi (Active + Archived)")
+    @GetMapping("/me")
+    public ResponseEntity<Page<StoryResponse>> getMyAllStories(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        UUID userId = UserContext.getCurrentUserId();
+        size = Math.min(size, 100);
+        return ResponseEntity.ok(storyService.getMyAllStories(userId, PageRequest.of(page, size)));
+    }
+
     @Operation(summary = "Chi tiết story")
     @GetMapping("/{id}")
     public ResponseEntity<StoryResponse> getStory(@PathVariable UUID id) {
