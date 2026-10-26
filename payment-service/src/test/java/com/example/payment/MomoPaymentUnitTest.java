@@ -23,8 +23,8 @@ import static org.mockito.Mockito.when;
 
 class MomoPaymentUnitTest {
 
-    private static final String ACCESS_KEY = "F8BBA842ECF85";
-    private static final String SECRET_KEY = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
+    private static final String ACCESS_KEY = "dummy_access_key";
+    private static final String SECRET_KEY = "dummy_secret_key";
 
     private static MomoProperties properties() {
         MomoProperties properties = new MomoProperties();
@@ -71,18 +71,18 @@ class MomoPaymentUnitTest {
                 "order123", "Thanh toan BLUE_TICK", "MOMO",
                 "http://localhost:8080/api/payments/momo/return",
                 "req123", "captureWallet");
-        assertEquals("d0036abdd67763f7ede492151e3ce8827698233d2ca9ff7b9f30cbce1f6671cd", signature);
+        assertEquals("7cafa5122c4ebc5e23ea3c7b3cd52a2f3fc84fe0b67b6a7bd403a0919a6a31ff", signature);
     }
 
     @Test
     void callbackRaw_fixedFieldOrder() {
         Map<String, String> params = ipnParams();
         String raw = MomoSigner.callbackRaw(params, ACCESS_KEY);
-        assertEquals("accessKey=F8BBA842ECF85&amount=199000&extraData=&message=Successful."
+        assertEquals("accessKey=dummy_access_key&amount=199000&extraData=&message=Successful."
                 + "&orderId=order123&orderInfo=Thanh toan BLUE_TICK&orderType=momo_wallet"
                 + "&partnerCode=MOMO&payType=qr&requestId=req123&responseTime=1721720663942"
                 + "&resultCode=0&transId=4088878653", raw);
-        assertEquals("f0a292a4eea783cbd65254455bab19f796ebbb0a915d04d9aee79658e5100aea",
+        assertEquals("afe78190e48f347a4488c9f26fecd5a245870d9bf7275dd4092b0cdd531df3ad",
                 MomoSigner.hmacSha256(SECRET_KEY, raw));
     }
 
