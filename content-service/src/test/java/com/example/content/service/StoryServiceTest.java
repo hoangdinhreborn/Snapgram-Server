@@ -38,11 +38,13 @@ class StoryServiceTest {
     private CloseFriendRepository closeFriendRepository;
     @Mock
     private KafkaTemplate<String, Object> kafkaTemplate;
+    @Mock
+    private com.example.content.client.AuthServiceClient authServiceClient;
 
     @Test
     void publicStoryEventContainsAcceptedFollowerIdsAndStableStoryId() {
         StoryService storyService = new StoryService(storyRepository, storyViewRepository, followRepository,
-                closeFriendRepository, kafkaTemplate);
+                closeFriendRepository, kafkaTemplate, authServiceClient);
         ReflectionTestUtils.setField(storyService, "storyTtlHours", 24);
         UUID authorId = UUID.randomUUID();
         UUID storyId = UUID.randomUUID();
@@ -70,7 +72,7 @@ class StoryServiceTest {
     @Test
     void privateStoryDoesNotFanOutToFollowers() {
         StoryService storyService = new StoryService(storyRepository, storyViewRepository, followRepository,
-                closeFriendRepository, kafkaTemplate);
+                closeFriendRepository, kafkaTemplate, authServiceClient);
         ReflectionTestUtils.setField(storyService, "storyTtlHours", 24);
         UUID authorId = UUID.randomUUID();
         UUID storyId = UUID.randomUUID();

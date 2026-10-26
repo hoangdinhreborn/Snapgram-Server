@@ -28,10 +28,11 @@ class FollowServiceEventTest {
     @Mock private FollowRepository followRepository;
     @Mock private UserPrivacyViewRepository userPrivacyViewRepository;
     @Mock private KafkaTemplate<String, Object> kafkaTemplate;
+    @Mock private com.example.content.client.AuthServiceClient authServiceClient;
 
     @Test
     void acceptedFollowPublishesStableFollowId() {
-        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate, authServiceClient);
         UUID followerId = UUID.randomUUID();
         UUID followingId = UUID.randomUUID();
         UUID relationshipId = UUID.randomUUID();
@@ -54,7 +55,7 @@ class FollowServiceEventTest {
 
     @Test
     void unfollowPublishesUnfollowEvent() {
-        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate, authServiceClient);
         UUID followerId = UUID.randomUUID();
         UUID followingId = UUID.randomUUID();
         UUID relationshipId = UUID.randomUUID();
@@ -80,7 +81,7 @@ class FollowServiceEventTest {
 
     @Test
     void rejectRequestPublishesRejectedEvent() {
-        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate);
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate, authServiceClient);
         UUID followerId = UUID.randomUUID();
         UUID followingId = UUID.randomUUID();
         UUID followId = UUID.randomUUID();
@@ -102,5 +103,38 @@ class FollowServiceEventTest {
         assertThat(eventCaptor.getValue().getFollowerId()).isEqualTo(followerId.toString());
         assertThat(eventCaptor.getValue().getFollowingId()).isEqualTo(followingId.toString());
         assertThat(eventCaptor.getValue().getStatus()).isEqualTo("REJECTED");
+    }
+
+    @Test
+    void removeMutualFollowDeletesBothAndPublishesUnfollowEvents() {
+        FollowService followService = new FollowService(followRepository, userPrivacyViewRepository, kafkaTemplate, authServiceClient);
+        UUID userA = UUID.randomUUID();
+        UUID userB = UUID.randomUUID();
+
+        Follow followAB = new Follow();
+        followAB.setId(UUID.randomUUID());
+        followAB.setFollowerId(userA);
+        followAB.setFollowingId(userB);
+
+        Follow followBA = new Follow();
+        followBA.setId(UUID.randomUUID());
+        followBA.setFollowerId(userB);
+        followBA.setFollowingId(userA);
+
+        when(followRepository.findByFollowerIdAndFollowingId(userA, userB)).thenReturn(Optional.of(followAB));
+        when(followRepository.findByFollowerIdAndFollowingId(userB, userA)).thenReturn(Optional.of(followBA));
+
+        followService.removeMutualFollow(userA, userB);
+
+        verify(followRepository).delete(followAB);
+        verify(followRepository).delete(followBA);
+
+        ArgumentCaptor<FollowEvent> eventCaptor = ArgumentCaptor.forClass(FollowEvent.class);
+        verify(kafkaTemplate).send(eq("follow.events"), eq(userA.toString()), eventCaptor.capture());
+        verify(kafkaTemplate).send(eq("follow.events"), eq(userB.toString()), eventCaptor.capture());
+
+        assertThat(eventCaptor.getAllValues()).hasSize(2);
+        assertThat(eventCaptor.getAllValues())
+                .allMatch(e -> "UNFOLLOW".equals(e.getStatus()));
     }
 }

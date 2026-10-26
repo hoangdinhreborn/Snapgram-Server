@@ -5,6 +5,10 @@ app:
   content:
     feed-page-size: 20
     story-ttl-hours: 24
+  auth:
+    url: ${AUTH_SERVICE_URL:http://localhost:8081}
+  recommender:
+    url: ${RECOMMENDER_SERVICE_URL:http://localhost:8090}
 
 spring:
   application:

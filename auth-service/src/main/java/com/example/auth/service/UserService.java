@@ -4,11 +4,13 @@ import com.example.auth.dto.*;
 import com.example.auth.entity.AuthBlock;
 import com.example.auth.entity.AuthNote;
 import com.example.auth.entity.AuthUser;
+import com.example.auth.entity.Role;
 import com.example.auth.exception.UserNotFoundException;
 import com.example.auth.repository.AuthBlockRepository;
 import com.example.auth.repository.AuthNoteRepository;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
+import com.example.auth.repository.AuthUserRoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,10 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -33,6 +33,7 @@ public class UserService {
     private static final String TOPIC_USER_EVENTS = "user.events";
 
     private final AuthUserRepository userRepository;
+    private final AuthUserRoleRepository userRoleRepository;
     private final AuthBlockRepository blockRepository;
     private final AuthNoteRepository noteRepository;
     private final AuthRefreshTokenRepository refreshTokenRepository;
@@ -54,14 +55,30 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserProfileResponse getPublicProfile(UUID viewerId, String username) {
         AuthUser target = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+                .orElseGet(() -> {
+                    try {
+                        return userRepository.findById(UUID.fromString(username))
+                                .orElseThrow(() -> new UserNotFoundException("User not found"));
+                    } catch (IllegalArgumentException e) {
+                        throw new UserNotFoundException("User not found");
+                    }
+                });
+
+        boolean isSelf = viewerId != null && viewerId.equals(target.getId());
+
+        // Target must be an active standard USER account when viewed by others
+        if (!isSelf) {
+            if (target.isBanned() || target.getRole() != Role.USER || userRoleRepository.hasNonStandardRole(target.getId())) {
+                throw new UserNotFoundException("User not found");
+            }
+        }
 
         // If either side has blocked the other → 404
-        if (isMutuallyBlocked(viewerId, target.getId())) {
+        if (viewerId != null && isMutuallyBlocked(viewerId, target.getId())) {
             throw new UserNotFoundException("User not found");
         }
 
-        return toPublicProfile(target, viewerId.equals(target.getId()));
+        return toPublicProfile(target, isSelf);
     }
 
     /** PATCH — only update fields that are non-null in the request. */
@@ -81,18 +98,80 @@ public class UserService {
         return toFullProfile(user);
     }
 
-    /** Search users by username / displayName (paginated). */
+    /** Search users by username / displayName (paginated). Returns recent active users if query is blank. Only standard USER role accounts are returned. */
     @Transactional(readOnly = true)
     public Page<UserProfileResponse> searchUsers(String q, Pageable pageable) {
-        return userRepository.searchByUsernameOrDisplayName(q.trim(), pageable)
-                .map(u -> UserProfileResponse.builder()
+        return searchUsers(null, q, pageable);
+    }
+
+    /** Search users by username / displayName with viewer mutual block exclusion. */
+    @Transactional(readOnly = true)
+    public Page<UserProfileResponse> searchUsers(UUID viewerId, String q, Pageable pageable) {
+        Page<AuthUser> page;
+        boolean hasQuery = q != null && !q.trim().isEmpty();
+
+        if (viewerId != null) {
+            if (!hasQuery) {
+                page = userRepository.findActiveStandardUsersWithoutViewerOrderByCreatedAtDesc(Role.USER, viewerId, pageable);
+            } else {
+                page = userRepository.searchActiveStandardUsersWithoutViewer(q.trim(), Role.USER, viewerId, pageable);
+            }
+        } else {
+            if (!hasQuery) {
+                page = userRepository.findActiveStandardUsersOrderByCreatedAtDesc(Role.USER, pageable);
+            } else {
+                page = userRepository.searchActiveStandardUsers(q.trim(), Role.USER, pageable);
+            }
+        }
+
+        return page.map(u -> UserProfileResponse.builder()
+                .id(u.getId().toString())
+                .username(u.getUsername())
+                .displayName(u.getDisplayName())
+                .avatarUrl(u.getAvatarUrl())
+                .role(u.getRole() != null ? u.getRole().name() : "USER")
+                .privateAccount(u.isPrivateAccount())
+                .verified(isVerifiedActive(u))
+                .verifiedUntil(u.getVerifiedUntil())
+                .createdAt(u.getCreatedAt())
+                .build());
+    }
+
+    /** Batch retrieve public user summaries by IDs. Only active standard USER role accounts are returned. */
+    @Transactional(readOnly = true)
+    public List<UserSummaryDto> getUsersSummaryBatch(List<UUID> userIds) {
+        return getUsersSummaryBatch(null, userIds);
+    }
+
+    /** Batch retrieve public user summaries by IDs with viewer mutual block exclusion. */
+    @Transactional(readOnly = true)
+    public List<UserSummaryDto> getUsersSummaryBatch(UUID viewerId, List<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<UUID> uniqueIds = new HashSet<>(userIds);
+        List<AuthUser> users = userRepository.findAllById(uniqueIds);
+        List<UUID> nonStandardUserIds = userRoleRepository.findNonStandardRoleUserIds();
+        Set<UUID> excludedIds = new HashSet<>(nonStandardUserIds);
+
+        if (viewerId != null) {
+            excludedIds.add(viewerId);
+            excludedIds.addAll(blockRepository.findMutualBlockedUserIds(viewerId));
+        }
+
+        return users.stream()
+                .filter(u -> !u.isBanned() && u.getRole() == Role.USER && !excludedIds.contains(u.getId()))
+                .map(u -> UserSummaryDto.builder()
                         .id(u.getId().toString())
                         .username(u.getUsername())
                         .displayName(u.getDisplayName())
                         .avatarUrl(u.getAvatarUrl())
+                        .role(u.getRole() != null ? u.getRole().name() : "USER")
                         .privateAccount(u.isPrivateAccount())
-                        .createdAt(u.getCreatedAt())
-                        .build());
+                        .verified(isVerifiedActive(u))
+                        .verifiedUntil(u.getVerifiedUntil())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -301,9 +380,17 @@ public class UserService {
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 
-    private boolean isMutuallyBlocked(UUID a, UUID b) {
+    @Transactional(readOnly = true)
+    public boolean isMutuallyBlocked(UUID a, UUID b) {
+        if (a == null || b == null) return false;
         return blockRepository
                 .existsByBlockerIdAndBlockedIdOrBlockerIdAndBlockedId(a, b, b, a);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> getMutualBlockedUserIds(UUID userId) {
+        if (userId == null) return List.of();
+        return blockRepository.findMutualBlockedUserIds(userId);
     }
 
     private void revokeAllRefreshTokens(UUID userId) {
@@ -315,6 +402,13 @@ public class UserService {
                 });
     }
 
+    /** Blue Tick còn hiệu lực tại thời điểm đọc — tránh badge tồn tại sau verified_until. */
+    private boolean isVerifiedActive(AuthUser u) {
+        return u.isVerified()
+                && u.getVerifiedUntil() != null
+                && u.getVerifiedUntil().isAfter(Instant.now());
+    }
+
     /** Full profile — owner view (includes sensitive settings). */
     private UserProfileResponse toFullProfile(AuthUser u) {
         return UserProfileResponse.builder()
@@ -323,11 +417,14 @@ public class UserService {
                 .email(u.getEmail())
                 .displayName(u.getDisplayName())
                 .avatarUrl(u.getAvatarUrl())
+                .role(u.getRole() != null ? u.getRole().name() : "USER")
                 .bio(u.getBio())
                 .website(u.getWebsite())
                 .pronouns(u.getPronouns())
                 .category(u.getCategory())
                 .privateAccount(u.isPrivateAccount())
+                .verified(isVerifiedActive(u))
+                .verifiedUntil(u.getVerifiedUntil())
                 .emailVerified(u.isEmailVerified())
                 .twoFaEnabled(u.isTwoFaEnabled())
                 .showActivityStatus(u.isShowActivityStatus())
@@ -344,7 +441,10 @@ public class UserService {
                 .username(u.getUsername())
                 .displayName(u.getDisplayName())
                 .avatarUrl(u.getAvatarUrl())
+                .role(u.getRole() != null ? u.getRole().name() : "USER")
                 .privateAccount(u.isPrivateAccount())
+                .verified(isVerifiedActive(u))
+                .verifiedUntil(u.getVerifiedUntil())
                 .createdAt(u.getCreatedAt())
                 // Hidden fields when account is private and viewer is not owner
                 .bio(isPrivate ? null : u.getBio())

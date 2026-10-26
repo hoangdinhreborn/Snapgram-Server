@@ -71,6 +71,26 @@ public class AuthController {
                 .body(response);
     }
 
+    /** POST /api/auth/facebook */
+    @PostMapping("/facebook")
+    public ResponseEntity<AuthResponse> loginWithFacebook(@Valid @RequestBody FacebookLoginRequest request) {
+        AuthResponse response = authService.loginWithFacebook(request);
+
+        if (Boolean.TRUE.equals(response.getRequiresTwoFa())) {
+            return ResponseEntity.ok(response);
+        }
+
+        ResponseCookie accessCookie = cookieUtils.createAccessTokenCookie(
+                response.getAccessToken(), jwtProperties.accessTokenTtl());
+        ResponseCookie refreshCookie = cookieUtils.createRefreshTokenCookie(
+                response.getRefreshToken(), jwtProperties.refreshTokenTtl());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .body(response);
+    }
+
     /** POST /api/auth/admin/login */
     @PostMapping("/admin/login")
     public ResponseEntity<AuthResponse> adminLogin(@Valid @RequestBody LoginRequest request) {
@@ -136,7 +156,7 @@ public class AuthController {
 
     /** POST /api/auth/logout */
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
+    public ResponseEntity<?> logout(
             @RequestBody(required = false) RefreshTokenRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             HttpServletRequest httpRequest) {
@@ -159,15 +179,17 @@ public class AuthController {
 
         authService.logout(request, accessToken);
 
-        ResponseCookie clearAccess = cookieUtils.clearCookie(CookieUtils.ACCESS_TOKEN_COOKIE, "/");
-        ResponseCookie clearAdminAccess = cookieUtils.clearCookie(CookieUtils.ADMIN_ACCESS_TOKEN_COOKIE, "/");
-        ResponseCookie clearRefresh = cookieUtils.clearCookie(CookieUtils.REFRESH_TOKEN_COOKIE, "/api/auth");
+        ResponseCookie clearAccess = cookieUtils.clearAccessTokenCookie();
+        ResponseCookie clearAdminAccess = cookieUtils.clearAdminAccessTokenCookie();
+        ResponseCookie clearRefresh = cookieUtils.clearRefreshTokenCookie();
+        ResponseCookie clearRefreshRoot = cookieUtils.clearCookie(CookieUtils.REFRESH_TOKEN_COOKIE, "/", "Lax");
 
-        return ResponseEntity.noContent()
+        return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearAccess.toString())
                 .header(HttpHeaders.SET_COOKIE, clearAdminAccess.toString())
                 .header(HttpHeaders.SET_COOKIE, clearRefresh.toString())
-                .build();
+                .header(HttpHeaders.SET_COOKIE, clearRefreshRoot.toString())
+                .body(java.util.Map.of("message", "Logged out successfully"));
     }
 
     /** GET /api/auth/me */

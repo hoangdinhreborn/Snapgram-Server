@@ -12,6 +12,12 @@ import java.util.List;
 public class PostResponse {
     private String id;
     private String authorId;
+    private String authorUsername;
+    private String authorDisplayName;
+    private String authorAvatarUrl;
+    /** Tác giả có Blue Tick còn hiệu lực hay không. */
+    private Boolean authorVerified;
+    private java.time.Instant authorVerifiedUntil;
     private String contentType;
     private String caption;
     private String mediaId;
@@ -30,4 +36,7 @@ public class PostResponse {
     private List<String> hashtags;
     private List<String> mentionedUserIds;
     private boolean likedByMe;
+    /** Người xem hiện tại đã lưu bài này chưa (null khi chưa đăng nhập). */
+    private Boolean savedByMe;
+    private String recommendationReason;
 }

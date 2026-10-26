@@ -8,12 +8,24 @@ app:
     initial-password: ${ADMIN_INITIAL_PASSWORD:}
   cookie:
     secure: ${COOKIE_SECURE:false}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    limit: ${AUTH_RATE_LIMIT:5000}
+    window-seconds: ${AUTH_RATE_LIMIT_WINDOW:60}
   jwt:
     secret: ${SNAPGRAM_JWT_SECRET}
     issuer: ${SNAPGRAM_JWT_ISSUER:snapgram-auth}
     access-token-ttl: ${SNAPGRAM_JWT_ACCESS_TOKEN_TTL:15m}
     admin-access-token-ttl: ${SNAPGRAM_JWT_ADMIN_ACCESS_TOKEN_TTL:30m}
     refresh-token-ttl: ${SNAPGRAM_JWT_REFRESH_TOKEN_TTL:30d}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  oauth:
+    facebook:
+      app-id: ${FACEBOOK_APP_ID:}
+      app-secret: ${FACEBOOK_APP_SECRET:}
+  mail:
+    from: ${GOOGLE_MAIL_USERNAME:}
+    from-name: "Snapgram"
 spring:
   application:
     name: auth-service
@@ -28,6 +40,23 @@ spring:
     basename: messages
     encoding: UTF-8
     fallback-to-system-locale: false
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${GOOGLE_MAIL_USERNAME:}
+    password: ${GOOGLE_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/snapgram}
     username: ${DB_USER:snapgram}
@@ -38,6 +67,11 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:auth-service}
+      auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
+      key-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -48,6 +82,11 @@ spring:
         jdbc:
           time_zone: UTC
 
+# Thoi han Blue Tick cho moi lan thanh toan thanh cong (payment.completed).
+payment:
+  grants:
+    BLUE_TICK: ${PAYMENT_GRANT_BLUE_TICK:30d}
+
 management:
   endpoints:
     web:
@@ -57,6 +96,9 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    mail:
+      enabled: false
 
 logging:
   level:
@@ -68,13 +110,6 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/auth-service.log
-  logback:
-    rollingpolicy:
-      max-file-size: 10MB
-      max-history: 30
 
 springdoc:
   swagger-ui:

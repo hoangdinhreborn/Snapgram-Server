@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ public class NotificationController {
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenService deviceTokenService;
+    private final com.example.notification.client.AuthServiceClient authServiceClient;
 
     @GetMapping
     public ResponseEntity<Page<Notification>> getNotifications(
@@ -31,15 +33,34 @@ public class NotificationController {
             @RequestParam(defaultValue = "20") int size) {
         UUID userId = UserContext.getCurrentUserId();
         Pageable pageable = PageRequest.of(page, Math.min(size, 50));
+        List<UUID> blockedIds = authServiceClient.getMutualBlockedUserIds(userId);
         Page<Notification> notifications;
 
-        if (unreadOnly) {
-            notifications = notificationRepository.findByUserIdAndIsReadOrderByCreatedAtDesc(userId, false, pageable);
+        if (blockedIds.isEmpty()) {
+            if (unreadOnly) {
+                notifications = notificationRepository.findByUserIdAndIsReadOrderByCreatedAtDesc(userId, false, pageable);
+            } else {
+                notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+            }
         } else {
-            notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+            if (unreadOnly) {
+                notifications = notificationRepository.findByUserIdAndIsReadFalseExcludingActors(userId, blockedIds, pageable);
+            } else {
+                notifications = notificationRepository.findByUserIdExcludingActors(userId, blockedIds, pageable);
+            }
         }
 
         return ResponseEntity.ok(notifications);
+    }
+
+    @GetMapping("/unread-count")
+    public ResponseEntity<Map<String, Long>> getUnreadCount() {
+        UUID userId = UserContext.getCurrentUserId();
+        List<UUID> blockedIds = authServiceClient.getMutualBlockedUserIds(userId);
+        long count = blockedIds.isEmpty()
+                ? notificationRepository.countByUserIdAndIsRead(userId, false)
+                : notificationRepository.countUnreadExcludingActors(userId, blockedIds);
+        return ResponseEntity.ok(Map.of("unreadCount", count));
     }
 
     @PostMapping("/{id}/read")

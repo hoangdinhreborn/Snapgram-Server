@@ -1,10 +1,8 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.AuthResponse;
-import com.example.auth.dto.LoginRequest;
-import com.example.auth.dto.RefreshTokenRequest;
-import com.example.auth.dto.RegisterRequest;
-import com.example.auth.dto.UserMeResponse;
+import com.example.auth.client.FacebookClient;
+import com.example.auth.dto.*;
+import com.example.auth.entity.AuthOAuthAccount;
 import com.example.auth.entity.AuthRefreshToken;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.entity.Role;
@@ -12,12 +10,13 @@ import com.example.auth.exception.AccountBannedException;
 import com.example.auth.exception.AccountLockedException;
 import com.example.auth.exception.DuplicateUserException;
 import com.example.auth.exception.InvalidCredentialsException;
+import com.example.auth.exception.OAuthAuthenticationException;
 import com.example.auth.exception.UserNotFoundException;
 import com.example.auth.exception.TwoFaException;
+import com.example.auth.repository.AuthOAuthAccountRepository;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
 import com.example.auth.security.JwtService;
-import com.example.auth.dto.TwoFaLoginRequest;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @Slf4j
@@ -37,6 +38,8 @@ public class AuthService {
 
     private final AuthUserRepository userRepository;
     private final AuthRefreshTokenRepository refreshTokenRepository;
+    private final AuthOAuthAccountRepository oAuthAccountRepository;
+    private final FacebookClient facebookClient;
     private final JwtService jwtService;
     private final RoleService roleService;
     private final PasswordEncoder passwordEncoder;
@@ -166,6 +169,159 @@ public class AuthService {
 
         // Generate tokens
         return generateTokens(user);
+    }
+
+    /**
+     * Authenticate or register a user via Facebook OAuth2.
+     */
+    @Transactional
+    public AuthResponse loginWithFacebook(FacebookLoginRequest request) {
+        if (request == null) {
+            throw new OAuthAuthenticationException("Dữ liệu đăng nhập Facebook không hợp lệ.");
+        }
+
+        String accessToken = request.getAccessToken();
+        if (accessToken == null || accessToken.isBlank()) {
+            if (request.getCode() == null || request.getCode().isBlank()) {
+                throw new OAuthAuthenticationException("Mã xác thực (code) hoặc accessToken Facebook là bắt buộc.");
+            }
+            if (request.getRedirectUri() == null || request.getRedirectUri().isBlank()) {
+                throw new OAuthAuthenticationException("Redirect URI là bắt buộc khi sử dụng authorization code.");
+            }
+            accessToken = facebookClient.exchangeCodeForAccessToken(request.getCode().trim(), request.getRedirectUri().trim());
+        }
+
+        FacebookUserProfile fbProfile = facebookClient.getUserProfile(accessToken);
+        String fbUserId = fbProfile.getId();
+        if (fbUserId == null || fbUserId.isBlank()) {
+            throw new OAuthAuthenticationException("Không thể nhận diện tài khoản Facebook hợp lệ.");
+        }
+
+        String fbEmail = fbProfile.getEmail() != null ? fbProfile.getEmail().trim().toLowerCase() : null;
+        String fbName = fbProfile.getName();
+        String fbAvatar = fbProfile.getAvatarUrl();
+
+        log.info("Processing Facebook login for fbUserId: {}, email: {}", fbUserId, fbEmail);
+
+        // 1. Check if OAuth account is already linked
+        Optional<AuthOAuthAccount> existingOAuth = oAuthAccountRepository.findByProviderAndProviderUserId("FACEBOOK", fbUserId);
+        AuthUser user;
+
+        if (existingOAuth.isPresent()) {
+            UUID userId = existingOAuth.get().getUserId();
+            user = userRepository.findById(userId)
+                    .orElseThrow(() -> new UserNotFoundException("Không tìm thấy người dùng liên kết với tài khoản Facebook này."));
+        } else {
+            // 2. Not linked yet. Check if an account already exists with the same email
+            AuthUser existingUserWithEmail = null;
+            if (fbEmail != null && !fbEmail.isBlank()) {
+                existingUserWithEmail = userRepository.findByEmail(fbEmail).orElse(null);
+            }
+
+            if (existingUserWithEmail != null) {
+                user = existingUserWithEmail;
+                log.info("Linking Facebook account (id={}) to existing user: {}", fbUserId, user.getUsername());
+                if (!user.isEmailVerified()) {
+                    user.setEmailVerified(true);
+                    user.setEmailVerifiedAt(Instant.now());
+                }
+            } else {
+                // 3. New user registration via Facebook
+                String username = generateUniqueUsername(fbName, fbUserId);
+                String email = (fbEmail != null && !fbEmail.isBlank())
+                        ? fbEmail
+                        : "fb_" + fbUserId + "@facebook.snapgram.internal";
+
+                user = new AuthUser();
+                user.setUsername(username);
+                user.setEmail(email);
+                // Random bcrypt password hash so local password login is disabled until reset (BCrypt max 72 bytes)
+                user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
+                user.setDisplayName(fbName != null && !fbName.isBlank() ? fbName : username);
+                user.setAvatarUrl(fbAvatar);
+                user.setRole(Role.USER);
+                user.setPrivateAccount(false);
+                user.setTwoFaEnabled(false);
+                user.setEmailVerified(fbEmail != null && !fbEmail.isBlank());
+                if (user.isEmailVerified()) {
+                    user.setEmailVerifiedAt(Instant.now());
+                }
+                user.setShowActivityStatus(true);
+
+                user = userRepository.save(user);
+                roleService.assignRole(user.getId(), "USER");
+                log.info("New user registered via Facebook: {} ({})", user.getUsername(), user.getId());
+            }
+
+            // Create OAuth account link
+            AuthOAuthAccount oAuthAccount = AuthOAuthAccount.builder()
+                    .userId(user.getId())
+                    .provider("FACEBOOK")
+                    .providerUserId(fbUserId)
+                    .email(fbEmail)
+                    .createdAt(Instant.now())
+                    .build();
+            oAuthAccountRepository.save(oAuthAccount);
+        }
+
+        // Check if user is banned
+        if (user.isBanned()) {
+            log.warn("Facebook login blocked: user {} is banned", user.getUsername());
+            throw new AccountBannedException("Account has been banned" + (user.getBanReason() != null ? ": " + user.getBanReason() : ""));
+        }
+
+        checkAccountLock(user);
+        resetFailedAttempts(user);
+
+        // Update avatar if currently empty
+        if ((user.getAvatarUrl() == null || user.getAvatarUrl().isBlank()) && fbAvatar != null && !fbAvatar.isBlank()) {
+            user.setAvatarUrl(fbAvatar);
+            userRepository.save(user);
+        }
+
+        // If 2FA is enabled
+        if (user.isTwoFaEnabled()) {
+            String tempToken = jwtService.generateTempToken(user);
+            log.info("2FA required for user {} (Facebook login)", user.getUsername());
+            return AuthResponse.builder()
+                    .requiresTwoFa(true)
+                    .tempToken(tempToken)
+                    .build();
+        }
+
+        return generateTokens(user);
+    }
+
+    private String generateUniqueUsername(String displayName, String fbUserId) {
+        String base = "user";
+        if (displayName != null && !displayName.isBlank()) {
+            String normalized = java.text.Normalizer.normalize(displayName, java.text.Normalizer.Form.NFD);
+            normalized = normalized.replaceAll("\\p{M}", "");
+            normalized = normalized.toLowerCase().replaceAll("[^a-z0-9._]", "_").replaceAll("_+", "_");
+            normalized = normalized.replaceAll("^_+|_+$", "");
+            if (normalized.length() >= 3) {
+                base = normalized.substring(0, Math.min(normalized.length(), 25));
+            }
+        }
+
+        String candidate = base;
+        if (!userRepository.existsByUsername(candidate)) {
+            return candidate;
+        }
+
+        for (int i = 0; i < 20; i++) {
+            int randomNum = 1000 + ThreadLocalRandom.current().nextInt(9000);
+            candidate = base + "_" + randomNum;
+            if (!userRepository.existsByUsername(candidate)) {
+                return candidate;
+            }
+        }
+
+        candidate = "fb_" + fbUserId.substring(0, Math.min(fbUserId.length(), 15));
+        if (!userRepository.existsByUsername(candidate)) {
+            return candidate;
+        }
+        return "u_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
     }
 
     /**
@@ -483,6 +639,10 @@ public class AuthService {
         AuthUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
 
+        boolean verified = user.isVerified()
+                && user.getVerifiedUntil() != null
+                && user.getVerifiedUntil().isAfter(Instant.now());
+
         return UserMeResponse.builder()
                 .id(user.getId().toString())
                 .username(user.getUsername())
@@ -491,6 +651,8 @@ public class AuthService {
                 .avatarUrl(user.getAvatarUrl())
                 .role(user.getRole() != null ? user.getRole().name() : "USER")
                 .emailVerified(user.isEmailVerified())
+                .verified(verified)
+                .verifiedUntil(user.getVerifiedUntil())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

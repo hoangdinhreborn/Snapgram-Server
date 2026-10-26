@@ -6,6 +6,7 @@ import com.example.auth.repository.AuthBlockRepository;
 import com.example.auth.repository.AuthNoteRepository;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
+import com.example.auth.repository.AuthUserRoleRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.*;
 class UserServiceKafkaEventTest {
 
     @Mock private AuthUserRepository userRepository;
+    @Mock private AuthUserRoleRepository userRoleRepository;
     @Mock private AuthBlockRepository blockRepository;
     @Mock private AuthNoteRepository noteRepository;
     @Mock private AuthRefreshTokenRepository refreshTokenRepository;

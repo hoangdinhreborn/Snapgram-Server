@@ -4,6 +4,7 @@ server:
 app:
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    external-endpoint: ${MINIO_EXTERNAL_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ROOT_USER:snapgram}
     secret-key: ${MINIO_ROOT_PASSWORD:snapgram-minio-dev-password}
     bucket: ${MINIO_BUCKET:snapgram-media}

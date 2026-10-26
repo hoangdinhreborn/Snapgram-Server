@@ -40,9 +40,12 @@ public class CommentController {
             @PathVariable UUID postId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UUID userId = UserContext.getCurrentUserId();
+        UUID requesterId = null;
+        try {
+            requesterId = UserContext.getCurrentUserId();
+        } catch (Exception ignored) {}
         size = Math.min(size, 50);
-        return ResponseEntity.ok(commentService.getRootComments(postId, userId, PageRequest.of(page, size)));
+        return ResponseEntity.ok(commentService.getRootComments(postId, requesterId, PageRequest.of(page, size)));
     }
 
     @Operation(summary = "Lấy replies của bình luận")
@@ -52,9 +55,12 @@ public class CommentController {
             @PathVariable UUID commentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UUID userId = UserContext.getCurrentUserId();
+        UUID requesterId = null;
+        try {
+            requesterId = UserContext.getCurrentUserId();
+        } catch (Exception ignored) {}
         size = Math.min(size, 50);
-        return ResponseEntity.ok(commentService.getReplies(postId, commentId, userId, PageRequest.of(page, size)));
+        return ResponseEntity.ok(commentService.getReplies(postId, commentId, requesterId, PageRequest.of(page, size)));
     }
 
     @Operation(summary = "Xóa bình luận")

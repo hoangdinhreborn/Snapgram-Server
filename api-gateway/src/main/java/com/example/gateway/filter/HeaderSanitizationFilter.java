@@ -41,6 +41,14 @@ public class HeaderSanitizationFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String path = exchange.getRequest().getPath().value();
+        if (path.contains("/internal/")) {
+            log.warn("Blocked external request to internal endpoint '{}' from {}",
+                    path, exchange.getRequest().getRemoteAddress());
+            exchange.getResponse().setStatusCode(org.springframework.http.HttpStatus.FORBIDDEN);
+            return exchange.getResponse().setComplete();
+        }
+
         ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                 .headers(httpHeaders -> {
                     for (String headerName : UNTRUSTED_INTERNAL_HEADERS) {

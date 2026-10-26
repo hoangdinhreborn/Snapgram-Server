@@ -66,9 +66,14 @@ public class InteractionService {
                     .watchTimeRatio(request.getWatchTimeRatio() != null
                             ? request.getWatchTimeRatio().doubleValue() : null)
                     .createdAt(Instant.now())
-                    .build());
+                    .build())
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.warn("Failed to publish interaction event asynchronously: {}", ex.getMessage());
+                    }
+                });
         } catch (Exception e) {
-            log.warn("Failed to publish interaction event: {}", e.getMessage());
+            log.warn("Failed to dispatch interaction event: {}", e.getMessage());
         }
     }
 

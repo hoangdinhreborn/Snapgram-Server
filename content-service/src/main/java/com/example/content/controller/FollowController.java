@@ -52,24 +52,33 @@ public class FollowController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Trạng thái follow với một user")
+    @GetMapping("/status/{targetUserId}")
+    public ResponseEntity<com.example.content.dto.FollowStatusResponse> getFollowStatus(
+            @PathVariable UUID targetUserId) {
+        return ResponseEntity.ok(followService.getFollowStatus(UserContext.getCurrentUserId(), targetUserId));
+    }
+
     @Operation(summary = "Danh sách followers")
     @GetMapping("/followers")
     public ResponseEntity<Page<FollowResponse>> getFollowers(
+            @RequestParam(required = false) UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UUID userId = UserContext.getCurrentUserId();
+        UUID targetId = (userId != null) ? userId : UserContext.getCurrentUserId();
         size = Math.min(size, 50);
-        return ResponseEntity.ok(followService.getFollowers(userId, PageRequest.of(page, size)));
+        return ResponseEntity.ok(followService.getFollowers(targetId, PageRequest.of(page, size)));
     }
 
     @Operation(summary = "Danh sách following")
     @GetMapping("/following")
     public ResponseEntity<Page<FollowResponse>> getFollowing(
+            @RequestParam(required = false) UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UUID userId = UserContext.getCurrentUserId();
+        UUID targetId = (userId != null) ? userId : UserContext.getCurrentUserId();
         size = Math.min(size, 50);
-        return ResponseEntity.ok(followService.getFollowing(userId, PageRequest.of(page, size)));
+        return ResponseEntity.ok(followService.getFollowing(targetId, PageRequest.of(page, size)));
     }
 
     @Operation(summary = "Danh sách follow requests đang chờ")

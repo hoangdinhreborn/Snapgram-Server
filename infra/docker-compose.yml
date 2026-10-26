@@ -172,6 +172,22 @@ services:
       timeout: 5s
       retries: 12
 
+  postgres-payment:
+    image: postgres:17
+    container_name: snapgram-postgres-payment
+    restart: unless-stopped
+    ports:
+      - "5439:5432"
+    environment:
+      <<: *pg-env
+    volumes:
+      - postgres_payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snapgram"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   minio:
     image: cgr.dev/chainguard/minio:latest
     container_name: snapgram-minio
@@ -182,6 +198,8 @@ services:
       - "9001:9001"
     env_file:
       - ../.env
+    environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -189,14 +207,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: snapgram-mailpit
-    restart: unless-stopped
-    ports:
-      - "1025:1025"
-      - "8025:8025"
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -228,8 +238,11 @@ services:
       DB_URL: jdbc:postgresql://postgres-auth:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
+      # GOOGLE_MAIL_USERNAME / GOOGLE_MAIL_PASSWORD lay tu env_file ../.env
+      # khong khai bao ${...} o day vi compose noi suy tu shell (trong) va de len env_file.
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       postgres-auth:
         condition: service_healthy
@@ -237,8 +250,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s
@@ -290,12 +301,15 @@ services:
       DB_URL: jdbc:postgresql://postgres-chat:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUTH_SERVICE_URL: http://auth-service:8081
     depends_on:
       postgres-chat:
         condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "wget -q -O- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'" ]
@@ -320,6 +334,8 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MINIO_ENDPOINT: http://minio:9000
+      AUTH_SERVICE_URL: http://auth-service:8081
+      RECOMMENDER_SERVICE_URL: http://recommender-service:8090
     depends_on:
       postgres-content:
         condition: service_healthy
@@ -328,6 +344,8 @@ services:
       kafka:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
@@ -352,6 +370,8 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MINIO_ENDPOINT: http://minio:9000
+      MINIO_EXTERNAL_ENDPOINT: ${MINIO_EXTERNAL_ENDPOINT:-http://localhost:9000}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000/snapgram-media}
     depends_on:
       postgres-media:
         condition: service_healthy
@@ -383,8 +403,6 @@ services:
       DB_URL: jdbc:postgresql://postgres-notification:5432/snapgram
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
     depends_on:
       postgres-notification:
         condition: service_healthy
@@ -392,8 +410,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8086/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s
@@ -452,6 +468,7 @@ services:
       CHATBOT_SERVICE_URL: http://chatbot-service:8082
       RECOMMENDER_SERVICE_URL: http://recommender-service:8090
       MEDIA_SERVICE_URL: http://media-service:8085
+      PAYMENT_SERVICE_URL: http://payment-service:8087
     depends_on:
       redis:
         condition: service_healthy
@@ -459,6 +476,34 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 60s
+
+  payment-service:
+    build:
+      context: ..
+      dockerfile: payment-service/Dockerfile
+    image: snapgram/payment-service:latest
+    container_name: snapgram-payment-service
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    env_file:
+      - ../.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres-payment:5432/snapgram
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # VNPAY_*/MOMO_* lay tu env_file ../.env — khong khai bao ${...} o day
+      # vi compose noi suy tu shell (trong) va de len env_file.
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8087/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s
       timeout: 10s
       retries: 8
@@ -474,4 +519,5 @@ volumes:
   postgres_recommender_data:
   postgres_media_data:
   postgres_notification_data:
+  postgres_payment_data:
   minio_data:

@@ -62,7 +62,6 @@ snapgram/
 - **PostgreSQL (Media)**: 5437
 - **PostgreSQL (Notification)**: 5438
 - **MinIO**: 9000 (API), 9001 (Console)
-- **Mailpit**: 1025 (SMTP), 8025 (Web)
 
 ### Application Services
 - **API Gateway**: 8080

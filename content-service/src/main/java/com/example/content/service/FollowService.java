@@ -31,6 +31,7 @@ public class FollowService {
     private final FollowRepository followRepository;
     private final UserPrivacyViewRepository userPrivacyViewRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
 
     @Transactional
     public FollowResponse follow(UUID followerId, UUID followingId) {
@@ -42,10 +43,13 @@ public class FollowService {
             throw new DuplicateResourceException("Already following or request pending");
         }
 
-        // Check target user's privacy setting
+        // Check target user's privacy setting (with fallback to AuthServiceClient if not yet synced in local view)
         boolean isPrivate = userPrivacyViewRepository.findById(followingId)
                 .map(UserPrivacyView::isPrivate)
-                .orElse(false);
+                .orElseGet(() -> {
+                    com.example.content.client.AuthServiceClient.UserSummary summary = authServiceClient.getUserSummary(followingId);
+                    return summary != null && summary.isPrivateAccount();
+                });
 
         FollowStatus status = isPrivate ? FollowStatus.PENDING : FollowStatus.ACCEPTED;
 
@@ -68,6 +72,21 @@ public class FollowService {
                 .orElseThrow(() -> new ContentNotFoundException("Follow relationship not found"));
         followRepository.delete(follow);
         publishFollowStatusEvent(follow.getId(), followerId, followingId, "UNFOLLOW");
+    }
+
+    @Transactional
+    public void removeMutualFollow(UUID userA, UUID userB) {
+        removeFollowIfExists(userA, userB);
+        removeFollowIfExists(userB, userA);
+    }
+
+    private void removeFollowIfExists(UUID followerId, UUID followingId) {
+        followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
+                .ifPresent(follow -> {
+                    followRepository.delete(follow);
+                    publishFollowStatusEvent(follow.getId(), followerId, followingId, "UNFOLLOW");
+                    log.info("Removed follow relation: {} -> {} due to block", followerId, followingId);
+                });
     }
 
     @Transactional
@@ -116,6 +135,17 @@ public class FollowService {
     public Page<FollowResponse> getPendingRequests(UUID userId, Pageable pageable) {
         return followRepository.findByFollowingIdAndStatusOrderByCreatedAtDesc(userId, FollowStatus.PENDING, pageable)
                 .map(this::toResponse);
+    }
+
+    /** Trạng thái follow của followerId với followingId — dùng cho nút Theo dõi ở Reels. */
+    @Transactional(readOnly = true)
+    public com.example.content.dto.FollowStatusResponse getFollowStatus(UUID followerId, UUID followingId) {
+        if (followerId.equals(followingId)) {
+            return new com.example.content.dto.FollowStatusResponse(false, "SELF");
+        }
+        return followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
+                .map(f -> new com.example.content.dto.FollowStatusResponse(true, f.getStatus().name()))
+                .orElseGet(() -> new com.example.content.dto.FollowStatusResponse(false, null));
     }
 
     private void publishFollowEvent(Follow follow) {

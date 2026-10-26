@@ -17,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, FacebookOAuthProperties.class})
 @EnableScheduling
 public class SecurityConfig {
 
@@ -43,15 +43,19 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login",
+                                "/api/auth/facebook",
                                 "/api/auth/admin/login",
                                 "/api/auth/login/2fa",
                                 "/api/auth/refresh",
                                 "/api/auth/verify",
+                                "/api/auth/logout",
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
                                 "/api/auth/verify-email",
                                 "/api/auth/admin/bootstrap",
                                 "/api/users/search",
+                                "/api/users/batch",
+                                "/api/users/internal/**",
                                 "/actuator/health",
                                 // Swagger UI
                                 "/swagger-ui.html",
@@ -61,6 +65,12 @@ public class SecurityConfig {
                         // Admin-only endpoints protected by hasAuthority
                         .requestMatchers("/api/auth/admin/**", "/api/admin/**")
                         .hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+                        // Users /me endpoints require authentication
+                        .requestMatchers("/api/users/me", "/api/users/me/**")
+                        .authenticated()
+                        // Public user profile viewing
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/*")
+                        .permitAll()
                         // Authenticated users
                         .anyRequest().authenticated()
                 )

@@ -44,6 +44,39 @@ public class NotificationConsumerService {
     private final NotificationPushOutboxRepository pushOutboxRepository;
     private final ObjectMapper objectMapper;
     private final NotificationEventProcessingService eventProcessingService;
+    private final com.example.notification.client.AuthServiceClient authServiceClient;
+
+    @KafkaListener(topics = "user.events", groupId = "notification-service")
+    public void consumeUserEvent(ConsumerRecord<String, String> record) {
+        try {
+            JsonNode root = objectMapper.readTree(record.value());
+            JsonNode payload = root.has("data") ? root.get("data") : root;
+            String eventType = payload.has("eventType") ? payload.get("eventType").asText() : null;
+            if (eventType == null) return;
+
+            if ("USER_BLOCKED".equals(eventType)) {
+                String blockerIdStr = payload.has("blockerId") ? payload.get("blockerId").asText() : null;
+                String blockedIdStr = payload.has("blockedId") ? payload.get("blockedId").asText() : null;
+                if (blockerIdStr != null && blockedIdStr != null) {
+                    UUID blockerId = UUID.fromString(blockerIdStr);
+                    UUID blockedId = UUID.fromString(blockedIdStr);
+                    notificationRepository.deleteMutuallyBlockedNotifications(blockerId, blockedId);
+                    authServiceClient.evictBlockCache(blockerId, blockedId);
+                    log.info("Deleted mutually blocked notifications between {} and {} on USER_BLOCKED", blockerId, blockedId);
+                }
+            } else if ("USER_UNBLOCKED".equals(eventType)) {
+                String blockerIdStr = payload.has("blockerId") ? payload.get("blockerId").asText() : null;
+                String blockedIdStr = payload.has("blockedId") ? payload.get("blockedId").asText() : null;
+                if (blockerIdStr != null && blockedIdStr != null) {
+                    UUID blockerId = UUID.fromString(blockerIdStr);
+                    UUID blockedId = UUID.fromString(blockedIdStr);
+                    authServiceClient.evictBlockCache(blockerId, blockedId);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to process user.events in notification-service: {}", e.getMessage());
+        }
+    }
 
     @KafkaListener(topics = "content.interaction", groupId = "notification-service")
     public void consumeInteractionEvent(ConsumerRecord<String, String> record) {
@@ -93,6 +126,7 @@ public class NotificationConsumerService {
         try {
             root = objectMapper.readTree(record.value());
             JsonNode payload = root.has("data") ? root.get("data") : root;
+            // Events carry extra metadata (eventId, ...) that DTOs do not model -> unknown fields ignored by mapper config
             event = objectMapper.treeToValue(payload, eventType);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Invalid JSON event for topic " + record.topic(), e);
@@ -129,6 +163,11 @@ public class NotificationConsumerService {
         UUID actorId = UUID.fromString(event.getUserId());
         UUID userId = UUID.fromString(event.getTargetUserId());
         UUID postId = UUID.fromString(event.getPostId());
+
+        if (authServiceClient.isMutuallyBlocked(actorId, userId)) {
+            log.debug("Skipping interaction notification: actor {} and user {} are mutually blocked", actorId, userId);
+            return;
+        }
         NotificationType type;
         try {
             type = NotificationType.valueOf(event.getType().toUpperCase());
@@ -136,14 +175,18 @@ public class NotificationConsumerService {
             log.warn("Skipping unsupported interaction notification type: {}", event.getType());
             return;
         }
-        if (type != NotificationType.LIKE && type != NotificationType.COMMENT) {
+        if (type != NotificationType.LIKE && type != NotificationType.COMMENT && type != NotificationType.REPLY) {
             return;
         }
+
+        // REPLAY goes to the replied-to comment author; keep targetType = COMMENT so the
+        // client can navigate straight to the post (targetId stays the post id).
+        String targetType = "POST";
 
         Instant now = Instant.now();
         Notification notification = notificationRepository
             .findRecentUnreadGroup(
-                userId, type, "POST", postId.toString(), now.minus(1, ChronoUnit.HOURS), PageRequest.of(0, 1))
+                userId, type, targetType, postId.toString(), now.minus(1, ChronoUnit.HOURS), PageRequest.of(0, 1))
             .stream()
             .findFirst()
             .orElse(null);
@@ -153,7 +196,7 @@ public class NotificationConsumerService {
             notification.setUserId(userId);
             notification.setActorId(actorId);
             notification.setType(type);
-            notification.setTargetType("POST");
+            notification.setTargetType(targetType);
             notification.setTargetId(postId.toString());
             notification.setPayload(serializePayload(Map.of(
                     "postId", postId.toString(),
@@ -208,6 +251,9 @@ public class NotificationConsumerService {
         for (String followerIdStr : event.getFollowerIds()) {
             try {
                 UUID followerId = UUID.fromString(followerIdStr);
+                if (authServiceClient.isMutuallyBlocked(authorId, followerId)) {
+                    continue;
+                }
 
                 String payload = """
                     {
@@ -245,6 +291,9 @@ public class NotificationConsumerService {
         for (String followerIdStr : event.getFollowerIds()) {
             try {
                 UUID followerId = UUID.fromString(followerIdStr);
+                if (authServiceClient.isMutuallyBlocked(authorId, followerId)) {
+                    continue;
+                }
                 String payload = objectMapper.writeValueAsString(Map.of(
                         "storyId", storyId.toString(),
                         "authorId", authorId.toString(),
@@ -279,6 +328,11 @@ public class NotificationConsumerService {
         UUID userId = UUID.fromString(event.getMentionedUserId());
         UUID authorId = UUID.fromString(event.getAuthorId());
         UUID postId = UUID.fromString(event.getPostId());
+
+        if (authServiceClient.isMutuallyBlocked(authorId, userId)) {
+            log.debug("Skipping mention notification: author {} and user {} are mutually blocked", authorId, userId);
+            return;
+        }
 
         String payload;
         try {
@@ -384,6 +438,10 @@ public class NotificationConsumerService {
 
     private void createAndDeliver(UUID userId, UUID actorId, NotificationType type,
                                   String targetType, String targetId, Map<String, Object> payload) {
+        if (actorId != null && userId != null && authServiceClient.isMutuallyBlocked(actorId, userId)) {
+            log.debug("Skipping notification: actor {} and user {} are mutually blocked", actorId, userId);
+            return;
+        }
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setActorId(actorId);
@@ -415,6 +473,11 @@ public class NotificationConsumerService {
     }
 
     private String interactionMessage(NotificationType type, int count) {
+        if (type == NotificationType.REPLY) {
+            return count == 1
+                    ? "đã trả lời bình luận của bạn"
+                    : count + " người đã trả lời bình luận của bạn";
+        }
         String action = type == NotificationType.LIKE ? "thích" : "bình luận";
         return count == 1
                 ? "đã " + action + " bài viết của bạn"

@@ -3,6 +3,7 @@ package com.example.notification.entity;
 public enum NotificationType {
     LIKE,
     COMMENT,
+    REPLY,
     POST_CREATED,
     STORY_CREATED,
     FOLLOW,

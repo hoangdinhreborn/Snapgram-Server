@@ -3,6 +3,8 @@ package com.example.notification.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -33,10 +35,12 @@ public class Notification {
     @Column(name = "target_id")
     private String targetId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
     private String payload;
 
     @Column(name = "is_read", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonProperty("isRead")
     private boolean isRead = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)

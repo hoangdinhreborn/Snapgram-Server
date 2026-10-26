@@ -50,12 +50,15 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    @DisplayName("shouldNotFilter should return true for /api/auth/verify")
+    @DisplayName("shouldNotFilter should return true for /api/auth/verify and /api/auth/logout")
     void shouldNotFilter_VerifyEndpoint_ShouldReturnTrue() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setServletPath("/api/auth/verify");
-
         assertThat(filter.shouldNotFilter(request)).isTrue();
+
+        MockHttpServletRequest logoutRequest = new MockHttpServletRequest();
+        logoutRequest.setServletPath("/api/auth/logout");
+        assertThat(filter.shouldNotFilter(logoutRequest)).isTrue();
     }
 
     @Test

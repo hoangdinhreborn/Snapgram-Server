@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 @Configuration
 @Slf4j
@@ -16,6 +17,9 @@ public class MinioConfig {
 
     @Value("${app.minio.endpoint}")
     private String endpoint;
+
+    @Value("${app.minio.external-endpoint:${app.minio.endpoint}}")
+    private String externalEndpoint;
 
     @Value("${app.minio.access-key}")
     private String accessKey;
@@ -27,11 +31,33 @@ public class MinioConfig {
     private String bucket;
 
     @Bean
+    @Primary
     public MinioClient minioClient() {
         return MinioClient.builder()
                 .endpoint(endpoint)
                 .credentials(accessKey, secretKey)
                 .build();
+    }
+
+    @Bean(name = "presignedMinioClient")
+    public MinioClient presignedMinioClient() {
+        String effectiveExternal = resolveExternalEndpoint(externalEndpoint);
+        log.info("Configuring presignedMinioClient with external endpoint: {}", effectiveExternal);
+        return MinioClient.builder()
+                .endpoint(effectiveExternal)
+                .credentials(accessKey, secretKey)
+                .build();
+    }
+
+    private String resolveExternalEndpoint(String rawExternal) {
+        if (rawExternal == null || rawExternal.isBlank() || rawExternal.contains("://minio:") || rawExternal.contains("://minio/")) {
+            return "http://localhost:9000";
+        }
+        String trimmed = rawExternal.trim();
+        if (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 
     @Bean

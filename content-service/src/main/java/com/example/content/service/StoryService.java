@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -38,6 +39,7 @@ public class StoryService {
     private final FollowRepository followRepository;
     private final CloseFriendRepository closeFriendRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
 
     @Transactional
     public StoryResponse createStory(UUID authorId, CreateStoryRequest request) {
@@ -83,7 +85,8 @@ public class StoryService {
             log.warn("Failed to publish story-created event: {}", e.getMessage());
         }
 
-        return toResponse(saved, false);
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(authorId);
+        return toResponse(saved, false, author);
     }
 
     @Transactional(readOnly = true)
@@ -97,18 +100,50 @@ public class StoryService {
 
         checkStoryVisibility(story, requesterId);
         boolean viewedByMe = storyViewRepository.existsByIdStoryIdAndIdViewerId(storyId, requesterId);
-        return toResponse(story, viewedByMe);
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(story.getAuthorId());
+        return toResponse(story, viewedByMe, author);
     }
 
     @Transactional(readOnly = true)
     public Page<StoryResponse> getStoryFeed(UUID userId, Pageable pageable) {
         List<UUID> followingIds = followRepository.findAcceptedFollowingIds(userId);
-        List<UUID> authorIds = new ArrayList<>(followingIds);
+        List<UUID> blockedIds = authServiceClient.getMutualBlockedUserIds(userId);
+        List<UUID> authorIds = new ArrayList<>();
         authorIds.add(userId);
+        followingIds.stream()
+                .filter(id -> !blockedIds.contains(id))
+                .forEach(authorIds::add);
 
         List<Visibility> visibilities = List.of(Visibility.PUBLIC, Visibility.FOLLOWERS);
-        return storyRepository.findActiveStoriesForFeed(authorIds, Instant.now(), visibilities, pageable)
-                .map(s -> toResponse(s, storyViewRepository.existsByIdStoryIdAndIdViewerId(s.getId(), userId)));
+        Page<Story> page = storyRepository.findActiveStoriesForFeed(authorIds, Instant.now(), visibilities, pageable);
+        List<UUID> storyAuthorIds = page.getContent().stream().map(Story::getAuthorId).distinct().toList();
+        Map<UUID, com.example.content.client.AuthServiceClient.UserSummary> authorMap =
+                authServiceClient.getUsersSummaryMap(storyAuthorIds);
+        return page.map(s -> toResponse(
+                s,
+                storyViewRepository.existsByIdStoryIdAndIdViewerId(s.getId(), userId),
+                authorMap.get(s.getAuthorId())
+        ));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StoryResponse> getMyArchivedStories(UUID userId, Pageable pageable) {
+        Page<Story> page = storyRepository.findByAuthorIdAndExpiresAtLessThanEqualOrderByCreatedAtDesc(
+                userId, Instant.now(), pageable
+        );
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(userId);
+        return page.map(s -> {
+            StoryResponse res = toResponse(s, true, author);
+            // Expired archived stories are strictly private to the user
+            return res;
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StoryResponse> getMyAllStories(UUID userId, Pageable pageable) {
+        Page<Story> page = storyRepository.findByAuthorIdOrderByCreatedAtDesc(userId, pageable);
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(userId);
+        return page.map(s -> toResponse(s, true, author));
     }
 
     @Transactional
@@ -127,6 +162,10 @@ public class StoryService {
     public void viewStory(UUID storyId, UUID viewerId) {
         Story story = storyRepository.findById(storyId)
                 .orElseThrow(() -> new ContentNotFoundException("Story not found"));
+
+        if (viewerId != null && authServiceClient.isMutuallyBlocked(viewerId, story.getAuthorId())) {
+            throw new ContentNotFoundException("Story not found");
+        }
 
         if (story.getExpiresAt().isBefore(Instant.now())) return;
         if (story.getAuthorId().equals(viewerId)) return; // Don't record author's own view
@@ -174,8 +213,9 @@ public class StoryService {
         }
     }
 
-    private StoryResponse toResponse(Story s, boolean viewedByMe) {
-        return StoryResponse.builder()
+    private StoryResponse toResponse(Story s, boolean viewedByMe,
+                                     com.example.content.client.AuthServiceClient.UserSummary author) {
+        StoryResponse.StoryResponseBuilder builder = StoryResponse.builder()
                 .id(s.getId().toString())
                 .authorId(s.getAuthorId().toString())
                 .mediaId(s.getMediaId() != null ? s.getMediaId().toString() : null)
@@ -185,7 +225,14 @@ public class StoryService {
                 .visibility(s.getVisibility().name())
                 .viewedByMe(viewedByMe)
                 .createdAt(s.getCreatedAt())
-                .expiresAt(s.getExpiresAt())
-                .build();
+                .expiresAt(s.getExpiresAt());
+
+        if (author != null) {
+            builder.authorUsername(author.getUsername())
+                   .authorDisplayName(author.getDisplayName())
+                   .authorAvatarUrl(author.getAvatarUrl());
+        }
+
+        return builder.build();
     }
 }

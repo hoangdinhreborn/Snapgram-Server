@@ -6,6 +6,7 @@ import com.example.content.entity.Comment;
 import com.example.content.entity.CommentLike;
 import com.example.content.entity.Post;
 import com.example.content.entity.PostStatus;
+import com.example.content.event.ContentInteractionEvent;
 import com.example.content.exception.AccessDeniedException;
 import com.example.content.exception.ContentNotFoundException;
 import com.example.content.exception.DuplicateResourceException;
@@ -16,9 +17,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -26,9 +31,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CommentService {
 
+    private static final String TOPIC_INTERACTION = "content.interaction";
+
     private final CommentRepository commentRepository;
     private final CommentLikeRepository commentLikeRepository;
     private final PostRepository postRepository;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Transactional
     public CommentResponse createComment(UUID postId, UUID authorId, CreateCommentRequest request) {
@@ -37,9 +46,11 @@ public class CommentService {
 
         // Validate parent comment belongs to same post and resolve to root parent if replying to a child (Instagram style - max depth 1)
         UUID resolvedParentId = null;
+        UUID repliedToAuthorId = null;
         if (request.getParentCommentId() != null) {
             Comment targetParent = commentRepository.findByIdAndPost_Id(request.getParentCommentId(), postId)
                     .orElseThrow(() -> new ContentNotFoundException("Parent comment not found in this post"));
+            repliedToAuthorId = targetParent.getAuthorId();
             resolvedParentId = targetParent.getParentCommentId() != null
                     ? targetParent.getParentCommentId()
                     : targetParent.getId();
@@ -48,27 +59,136 @@ public class CommentService {
         Comment comment = new Comment();
         comment.setPost(post);
         comment.setAuthorId(authorId);
-        comment.setContent(request.getContent());
+        String rawContent = request.getContent() != null ? request.getContent().trim() : "";
+        String mediaUrl = request.getMediaUrl() != null ? request.getMediaUrl().trim() : null;
+        if (mediaUrl != null && mediaUrl.isEmpty()) {
+            mediaUrl = null;
+        }
+        if (rawContent.isEmpty() && mediaUrl == null) {
+            throw new IllegalArgumentException("Bình luận cần có nội dung hoặc media");
+        }
+        comment.setContent(rawContent.isEmpty() ? null : rawContent);
+        comment.setMediaUrl(mediaUrl);
+        // Sticker không có mediaUrl (chỉ emoji) nhưng vẫn cần mediaType để client render lớn
+        String requestedType = request.getMediaType();
+        boolean hasRequestedType = requestedType != null && !requestedType.isBlank();
+        comment.setMediaType(
+                (mediaUrl != null || hasRequestedType)
+                        ? normalizeMediaType(requestedType)
+                        : null
+        );
         comment.setParentCommentId(resolvedParentId);
         Comment saved = commentRepository.save(comment);
 
         postRepository.incrementCommentCount(postId);
 
-        return toResponse(saved, false);
+        publishCommentEvent(saved, post, authorId);
+        publishReplyEvent(saved, post, repliedToAuthorId, authorId);
+
+        com.example.content.client.AuthServiceClient.UserSummary author = authServiceClient.getUserSummary(authorId);
+        return toResponse(saved, false, author);
+    }
+
+    /** Publish COMMENT interaction event so notification-service can notify the post author. */
+    private void publishCommentEvent(Comment comment, Post post, UUID authorId) {
+        if (post.getAuthorId() == null || post.getAuthorId().equals(authorId)) {
+            return; // Do not notify yourself
+        }
+        try {
+            kafkaTemplate.send(TOPIC_INTERACTION, post.getId().toString(), ContentInteractionEvent.builder()
+                    .eventId(comment.getId().toString())
+                    .userId(authorId.toString())
+                    .targetUserId(post.getAuthorId().toString())
+                    .postId(post.getId().toString())
+                    .type("COMMENT")
+                    .createdAt(Instant.now())
+                    .build())
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.warn("Failed to publish comment interaction event: {}", ex.getMessage());
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("Failed to dispatch comment interaction event: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Publish a REPLY interaction event so the author of the comment being replied to
+     * also gets notified (previously only the post author was notified).
+     */
+    private void publishReplyEvent(Comment comment, Post post, UUID repliedToAuthorId, UUID authorId) {
+        if (repliedToAuthorId == null) {
+            return; // Not a reply
+        }
+        if (repliedToAuthorId.equals(authorId)) {
+            return; // Replying to yourself
+        }
+        if (post.getAuthorId() != null && repliedToAuthorId.equals(post.getAuthorId())) {
+            return; // Post author already notified via the COMMENT event
+        }
+        try {
+            kafkaTemplate.send(TOPIC_INTERACTION, post.getId().toString(), ContentInteractionEvent.builder()
+                    .eventId(replyEventId(comment.getId()))
+                    .userId(authorId.toString())
+                    .targetUserId(repliedToAuthorId.toString())
+                    .postId(post.getId().toString())
+                    .type("REPLY")
+                    .createdAt(Instant.now())
+                    .build())
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.warn("Failed to publish reply interaction event: {}", ex.getMessage());
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("Failed to dispatch reply interaction event: {}", e.getMessage());
+        }
+    }
+
+    /** Stable, distinct-from-commentId event id so reply notifications stay idempotent. */
+    private String replyEventId(UUID commentId) {
+        return UUID.nameUUIDFromBytes((commentId + ":reply").getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                .toString();
     }
 
     @Transactional(readOnly = true)
     public Page<CommentResponse> getRootComments(UUID postId, UUID requesterId, Pageable pageable) {
         postRepository.findByIdAndStatusNot(postId, PostStatus.DELETED)
                 .orElseThrow(() -> new ContentNotFoundException("Post not found"));
-        return commentRepository.findRootCommentsByPostId(postId, pageable)
-                .map(c -> toResponse(c, commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId)));
+        Page<Comment> comments = commentRepository.findRootCommentsByPostId(postId, pageable);
+        List<UUID> authorIds = comments.getContent().stream().map(Comment::getAuthorId).distinct().toList();
+        Map<UUID, com.example.content.client.AuthServiceClient.UserSummary> authorMap =
+                authServiceClient.getUsersSummaryMap(authorIds);
+
+        // Số trả lời của từng comment gốc — để client chỉ hiện nút "Xem trả lời" khi thực sự có
+        List<UUID> rootIds = comments.getContent().stream().map(Comment::getId).toList();
+        Map<UUID, Long> replyCounts = new java.util.HashMap<>();
+        if (!rootIds.isEmpty()) {
+            for (Object[] row : commentRepository.countRepliesByParentIds(postId, rootIds)) {
+                replyCounts.put((UUID) row[0], (Long) row[1]);
+            }
+        }
+
+        return comments.map(c -> toResponse(
+                c,
+                commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId),
+                authorMap.get(c.getAuthorId()),
+                replyCounts.getOrDefault(c.getId(), 0L)
+        ));
     }
 
     @Transactional(readOnly = true)
     public Page<CommentResponse> getReplies(UUID postId, UUID parentCommentId, UUID requesterId, Pageable pageable) {
-        return commentRepository.findReplies(postId, parentCommentId, pageable)
-                .map(c -> toResponse(c, commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId)));
+        Page<Comment> comments = commentRepository.findReplies(postId, parentCommentId, pageable);
+        List<UUID> authorIds = comments.getContent().stream().map(Comment::getAuthorId).distinct().toList();
+        Map<UUID, com.example.content.client.AuthServiceClient.UserSummary> authorMap =
+                authServiceClient.getUsersSummaryMap(authorIds);
+        return comments.map(c -> toResponse(
+                c,
+                commentLikeRepository.existsByIdCommentIdAndIdUserId(c.getId(), requesterId),
+                authorMap.get(c.getAuthorId())
+        ));
     }
 
     @Transactional
@@ -115,17 +235,46 @@ public class CommentService {
         commentRepository.decrementLikeCount(commentId);
     }
 
-    private CommentResponse toResponse(Comment c, boolean likedByMe) {
-        return CommentResponse.builder()
+    private CommentResponse toResponse(Comment c, boolean likedByMe,
+                                       com.example.content.client.AuthServiceClient.UserSummary author) {
+        return toResponse(c, likedByMe, author, null);
+    }
+
+    /** Chuẩn hoá loại media của bình luận: IMAGE | GIF | STICKER. */
+    private String normalizeMediaType(String raw) {
+        if (raw == null || raw.isBlank()) return "IMAGE";
+        String value = raw.trim().toUpperCase();
+        return switch (value) {
+            case "IMAGE", "GIF", "STICKER" -> value;
+            default -> "IMAGE";
+        };
+    }
+
+    private CommentResponse toResponse(Comment c, boolean likedByMe,
+                                       com.example.content.client.AuthServiceClient.UserSummary author,
+                                       Long replyCount) {
+        CommentResponse.CommentResponseBuilder builder = CommentResponse.builder()
                 .id(c.getId().toString())
                 .postId(c.getPost().getId().toString())
                 .authorId(c.getAuthorId().toString())
                 .content(c.getContent())
+                .mediaUrl(c.getMediaUrl())
+                .mediaType(c.getMediaType())
                 .parentCommentId(c.getParentCommentId() != null ? c.getParentCommentId().toString() : null)
                 .likeCount(c.getLikeCount())
                 .likedByMe(likedByMe)
+                .replyCount(replyCount)
                 .createdAt(c.getCreatedAt())
-                .updatedAt(c.getUpdatedAt())
-                .build();
+                .updatedAt(c.getUpdatedAt());
+
+        if (author != null) {
+            builder.authorUsername(author.getUsername())
+                   .authorDisplayName(author.getDisplayName())
+                   .authorAvatarUrl(author.getAvatarUrl())
+                   .authorVerified(author.isVerified())
+                   .authorVerifiedUntil(author.getVerifiedUntil());
+        }
+
+        return builder.build();
     }
 }

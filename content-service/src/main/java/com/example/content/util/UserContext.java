@@ -44,6 +44,18 @@ public final class UserContext {
         throw new UnauthorizedException("Missing authentication: X-User-Id header is required");
     }
 
+    public static UUID getOptionalCurrentUserId() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes == null) return null;
+            String userIdStr = attributes.getRequest().getHeader(HEADER_USER_ID);
+            if (userIdStr != null && !userIdStr.isBlank()) {
+                return UUID.fromString(userIdStr.trim());
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     /**
      * Lấy Username từ header X-Username.
      */

@@ -23,6 +23,16 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
 
     Optional<Comment> findByIdAndPost_Id(UUID id, UUID postId);
 
+    /** Đếm số trả lời cho từng comment gốc — dùng để biết có hiện nút "Xem trả lời" hay không */
+    @Query("""
+            SELECT c.parentCommentId, COUNT(c)
+            FROM Comment c
+            WHERE c.post.id = :postId AND c.parentCommentId IN :parentIds
+            GROUP BY c.parentCommentId
+            """)
+    java.util.List<Object[]> countRepliesByParentIds(@Param("postId") UUID postId,
+                                                     @Param("parentIds") java.util.Collection<UUID> parentIds);
+
     @Modifying
     @Query("UPDATE Comment c SET c.likeCount = c.likeCount + 1 WHERE c.id = :id")
     void incrementLikeCount(@Param("id") UUID id);

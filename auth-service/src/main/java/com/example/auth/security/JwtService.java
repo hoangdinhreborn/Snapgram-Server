@@ -30,7 +30,16 @@ public class JwtService {
     public JwtService(JwtProperties properties) {
         this.properties = properties;
 
-        byte[] keyBytes = Decoders.BASE64.decode(properties.secret());
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(properties.secret());
+        } catch (Exception ex) {
+            try {
+                keyBytes = Decoders.BASE64URL.decode(properties.secret());
+            } catch (Exception ex2) {
+                keyBytes = properties.secret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
     }
 

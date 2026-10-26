@@ -1,0 +1,90 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: payment-service
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  jackson:
+    default-property-inclusion: non_null
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5439/snapgram}
+    username: ${DB_USER:snapgram}
+    password: ${DB_PASSWORD:snapgram}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+vnpay:
+  url: ${VNPAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+  api-url: ${VNPAY_API_URL:https://sandbox.vnpayment.vn/merchant_webapi/api/transaction}
+  tmn-code: ${VNPAY_TMN_CODE:}
+  hash-secret: ${VNPAY_HASH_SECRET:}
+  return-url: ${VNPAY_RETURN_URL:http://localhost:8080/api/payments/vnpay/return}
+  version: ${VNPAY_VERSION:2.1.0}
+  command: ${VNPAY_COMMAND:pay}
+  order-type: ${VNPAY_ORDER_TYPE:other}
+  currency: ${VNPAY_CURRENCY:VND}
+  locale: ${VNPAY_LOCALE:vn}
+
+momo:
+  base-url: ${MOMO_BASE_URL:https://test-payment.momo.vn}
+  partner-code: ${MOMO_PARTNER_CODE:}
+  access-key: ${MOMO_ACCESS_KEY:}
+  secret-key: ${MOMO_SECRET_KEY:}
+  return-url: ${MOMO_RETURN_URL:http://localhost:8080/api/payments/momo/return}
+  # MoMo yeu cau ipnUrl trong create — local mac dinh qua gateway, prod phai la public URL
+  ipn-url: ${MOMO_IPN_URL:http://localhost:8080/api/payments/momo/ipn}
+  request-type: ${MOMO_REQUEST_TYPE:captureWallet}
+  lang: ${MOMO_LANG:vi}
+  timeout-seconds: ${MOMO_TIMEOUT_SECONDS:30}
+
+payment:
+  kafka:
+    topic-completed: ${PAYMENT_TOPIC_COMPLETED:payment.completed}
+  pending-timeout-minutes: ${PAYMENT_PENDING_TIMEOUT_MINUTES:15}
+  frontend-result-url: ${PAYMENT_FRONTEND_RESULT_URL:http://localhost:3000/payment/result}
+  reconcile:
+    # Tu dong query provider cho don PENDING khi IPN that lac (mac dinh MoMo).
+    enabled: ${PAYMENT_RECONCILE_ENABLED:true}
+    provider: ${PAYMENT_RECONCILE_PROVIDER:MOMO}
+    interval-ms: ${PAYMENT_RECONCILE_INTERVAL_MS:60000}
+    initial-delay-ms: ${PAYMENT_RECONCILE_INITIAL_DELAY_MS:30000}
+    min-age-seconds: ${PAYMENT_RECONCILE_MIN_AGE_SECONDS:30}
+    expired-grace-seconds: ${PAYMENT_RECONCILE_EXPIRED_GRACE_SECONDS:900}
+    batch-size: ${PAYMENT_RECONCILE_BATCH_SIZE:20}
+  outbox:
+    poll-interval-ms: ${PAYMENT_OUTBOX_POLL_INTERVAL_MS:2000}
+    batch-size: ${PAYMENT_OUTBOX_BATCH_SIZE:50}
+    lease-seconds: ${PAYMENT_OUTBOX_LEASE_SECONDS:60}
+    max-attempts: ${PAYMENT_OUTBOX_MAX_ATTEMPTS:10}
+    send-timeout-seconds: ${PAYMENT_OUTBOX_SEND_TIMEOUT_SECONDS:10}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.example.payment: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
