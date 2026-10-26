@@ -6,8 +6,8 @@ import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -16,10 +16,17 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class StorageService {
 
     private final MinioClient minioClient;
+    private final MinioClient presignedMinioClient;
+
+    public StorageService(
+            MinioClient minioClient,
+            @Qualifier("presignedMinioClient") MinioClient presignedMinioClient) {
+        this.minioClient = minioClient;
+        this.presignedMinioClient = presignedMinioClient;
+    }
 
     @Getter
     @Value("${app.minio.bucket}")
@@ -61,7 +68,7 @@ public class StorageService {
 
     public String generatePresignedUploadUrl(String objectKey, String contentType, int expirationSeconds) {
         try {
-            return minioClient.getPresignedObjectUrl(
+            return presignedMinioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.PUT)
                             .bucket(bucket)

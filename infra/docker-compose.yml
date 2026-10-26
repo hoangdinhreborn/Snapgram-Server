@@ -198,6 +198,8 @@ services:
       - "9001:9001"
     env_file:
       - ../.env
+    environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -368,6 +370,8 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MINIO_ENDPOINT: http://minio:9000
+      MINIO_EXTERNAL_ENDPOINT: ${MINIO_EXTERNAL_ENDPOINT:-http://localhost:9000}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000/snapgram-media}
     depends_on:
       postgres-media:
         condition: service_healthy
