@@ -45,6 +45,13 @@ public class OllamaVisionClient {
     }
 
     public CaptionSuggestion generate(String imageBase64, CaptionTone tone, MediaVisualType visualType) {
+        if (properties.getBaseUrl() == null || properties.getBaseUrl().isBlank()) {
+            throw new AiServiceUnavailableException("Chưa cấu hình OLLAMA_BASE_URL trong biến môi trường.");
+        }
+        if (properties.getModel() == null || properties.getModel().isBlank()) {
+            throw new AiServiceUnavailableException("Chưa cấu hình OLLAMA_MODEL trong biến môi trường.");
+        }
+
         // Attempt generation with up to 1 retry if model responds with invalid json
         Exception lastException = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
