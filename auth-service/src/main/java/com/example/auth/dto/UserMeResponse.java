@@ -14,6 +14,8 @@ public class UserMeResponse {
     private String username;
     private String email;
     private String role;
+    private java.util.Collection<String> roles;
+    private java.util.Collection<String> permissions;
     private String displayName;
     private String avatarUrl;
     private boolean emailVerified;

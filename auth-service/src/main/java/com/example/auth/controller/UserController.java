@@ -27,6 +27,7 @@ public class UserController {
     private final UserService userService;
     private final TwoFaService twoFaService;
     private final EmailVerificationService emailVerificationService;
+    private final com.example.auth.service.AdminService adminService;
 
     // ─────────────────────────────────────────────────────────────
     // Profile
@@ -84,6 +85,18 @@ public class UserController {
     @GetMapping("/internal/mutual-blocks/{userId}")
     public ResponseEntity<java.util.List<UUID>> getMutualBlockedUserIds(@PathVariable UUID userId) {
         return ResponseEntity.ok(userService.getMutualBlockedUserIds(userId));
+    }
+
+    /** POST /api/users/internal/{userId}/ban */
+    @PostMapping("/internal/{userId}/ban")
+    public ResponseEntity<Void> internalBanUser(
+            @PathVariable UUID userId,
+            @RequestBody(required = false) InternalBanRequest request) {
+        String reason = (request != null && request.getReason() != null)
+                ? request.getReason()
+                : "Vi phạm tiêu chuẩn cộng đồng";
+        adminService.banUser(null, userId, reason);
+        return ResponseEntity.noContent().build();
     }
 
     // ─────────────────────────────────────────────────────────────

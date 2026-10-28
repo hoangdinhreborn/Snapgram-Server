@@ -32,7 +32,7 @@ public class AdminReportController {
             @RequestParam(required = false) ReportTargetType targetType,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UserContext.requireAdmin();
+        UserContext.requirePermission("REPORT:VIEW");
 
         size = Math.min(size, 50);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -42,14 +42,14 @@ public class AdminReportController {
     @Operation(summary = "Xem chi tiết một báo cáo vi phạm (Admin)")
     @GetMapping("/{id}")
     public ResponseEntity<ReportResponse> getReportById(@PathVariable UUID id) {
-        UserContext.requireAdmin();
+        UserContext.requirePermission("REPORT:VIEW");
         return ResponseEntity.ok(reportService.getReportById(id));
     }
 
     @Operation(summary = "Duyệt báo cáo và xử lý nội dung vi phạm (Admin)")
     @PatchMapping("/{id}/resolve")
     public ResponseEntity<ReportResponse> resolveReport(@PathVariable UUID id) {
-        UserContext.requireAdmin();
+        UserContext.requirePermission("REPORT:RESOLVE");
         UUID adminId = UserContext.getCurrentUserId();
         return ResponseEntity.ok(reportService.resolveReport(id, adminId));
     }
@@ -57,7 +57,7 @@ public class AdminReportController {
     @Operation(summary = "Bác bỏ báo cáo không vi phạm (Admin)")
     @PatchMapping("/{id}/dismiss")
     public ResponseEntity<ReportResponse> dismissReport(@PathVariable UUID id) {
-        UserContext.requireAdmin();
+        UserContext.requirePermission("REPORT:DISMISS");
         UUID adminId = UserContext.getCurrentUserId();
         return ResponseEntity.ok(reportService.dismissReport(id, adminId));
     }

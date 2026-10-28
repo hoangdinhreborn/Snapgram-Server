@@ -169,6 +169,23 @@ public class AuthServiceClient {
         return map.get(userId);
     }
 
+    public void banUser(UUID userId, String reason) {
+        if (userId == null) return;
+        try {
+            restClient.post()
+                    .uri("/api/users/internal/{userId}/ban", userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new InternalBanRequest(reason))
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("AuthServiceClient banned user {} with reason: {}", userId, reason);
+        } catch (Exception e) {
+            log.warn("AuthServiceClient ban user {} failed: {}", userId, e.getMessage());
+        }
+    }
+
+    public record InternalBanRequest(String reason) {}
+
     private record CachedUserSummary(UserSummary summary, Instant expiresAt) {}
     private record CachedBlockStatus(boolean blocked, Instant expiresAt) {}
     private record CachedBlockedIds(List<UUID> ids, Instant expiresAt) {}

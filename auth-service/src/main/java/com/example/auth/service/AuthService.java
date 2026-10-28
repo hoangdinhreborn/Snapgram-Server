@@ -346,10 +346,12 @@ public class AuthService {
             handleFailedLogin(user, ADMIN_MAX_FAILED_ATTEMPTS);
         }
 
-        // Verify ADMIN role - if not ADMIN, reject with generic error
-        if (user.getRole() != Role.ADMIN) {
-            log.warn("Admin login rejected: user {} has role {} (not ADMIN)", user.getUsername(), user.getRole());
-            handleFailedLogin(user, ADMIN_MAX_FAILED_ATTEMPTS);
+        // Verify that user has at least one staff / admin role (not just USER)
+        Collection<String> roles = roleService.getUserRoles(user.getId());
+        boolean hasStaffRole = roles.stream().anyMatch(r -> !"USER".equalsIgnoreCase(r));
+        if (!hasStaffRole) {
+            log.warn("Admin login rejected: user {} has no staff or admin roles ({})", user.getUsername(), roles);
+            throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to access the admin portal");
         }
 
         if (user.isBanned()) {
@@ -643,13 +645,27 @@ public class AuthService {
                 && user.getVerifiedUntil() != null
                 && user.getVerifiedUntil().isAfter(Instant.now());
 
+        Collection<String> userRoles = roleService.getUserRoles(userId);
+        Collection<String> userPermissions = roleService.getUserPermissions(userId);
+        String primaryRole = "USER";
+        if (userRoles.contains("ADMIN")) {
+            primaryRole = "ADMIN";
+        } else {
+            primaryRole = userRoles.stream()
+                    .filter(r -> !"USER".equalsIgnoreCase(r))
+                    .findFirst()
+                    .orElse(user.getRole() != null ? user.getRole().name() : "USER");
+        }
+
         return UserMeResponse.builder()
                 .id(user.getId().toString())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .displayName(user.getDisplayName())
                 .avatarUrl(user.getAvatarUrl())
-                .role(user.getRole() != null ? user.getRole().name() : "USER")
+                .role(primaryRole)
+                .roles(userRoles)
+                .permissions(userPermissions)
                 .emailVerified(user.isEmailVerified())
                 .verified(verified)
                 .verifiedUntil(user.getVerifiedUntil())

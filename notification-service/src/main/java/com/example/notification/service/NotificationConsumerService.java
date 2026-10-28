@@ -416,6 +416,37 @@ public class NotificationConsumerService {
                 "message", "báo cáo của bạn đã được xử lý",
                 "createdAt", event.getCreatedAt() == null ? Instant.now().toString() : event.getCreatedAt().toString()
         ));
+
+        // Thông báo đến tác giả của nội dung vi phạm
+        if (event.getTargetOwnerId() != null && !event.getTargetOwnerId().isBlank()) {
+            try {
+                UUID targetOwnerId = UUID.fromString(event.getTargetOwnerId());
+                String targetType = event.getTargetType() != null ? event.getTargetType().toUpperCase() : "CONTENT";
+                String reason = event.getReason() != null ? event.getReason() : "vi phạm tiêu chuẩn cộng đồng";
+                String userMessage;
+                if ("POST".equals(targetType)) {
+                    userMessage = "Bài viết của bạn đã bị gỡ bỏ do vi phạm tiêu chuẩn cộng đồng (" + reason + ").";
+                } else if ("COMMENT".equals(targetType)) {
+                    userMessage = "Bình luận của bạn đã bị xóa do vi phạm tiêu chuẩn cộng đồng (" + reason + ").";
+                } else if ("USER".equals(targetType)) {
+                    userMessage = "Tài khoản của bạn đã bị khóa do vi phạm tiêu chuẩn cộng đồng (" + reason + ").";
+                } else {
+                    userMessage = "Nội dung của bạn đã bị gỡ bỏ do vi phạm tiêu chuẩn cộng đồng (" + reason + ").";
+                }
+
+                createAndDeliver(targetOwnerId, moderatorId, NotificationType.SYSTEM, targetType,
+                        event.getTargetId() != null ? event.getTargetId() : event.getReportId(), Map.of(
+                                "reportId", event.getReportId(),
+                                "targetType", targetType,
+                                "targetId", event.getTargetId() != null ? event.getTargetId() : "",
+                                "reason", reason,
+                                "message", userMessage,
+                                "createdAt", event.getCreatedAt() == null ? Instant.now().toString() : event.getCreatedAt().toString()
+                        ));
+            } catch (Exception ex) {
+                log.warn("Failed to deliver violation notification to target owner {}: {}", event.getTargetOwnerId(), ex.getMessage());
+            }
+        }
     }
 
     public void handleCallEvent(CallEvent event) {

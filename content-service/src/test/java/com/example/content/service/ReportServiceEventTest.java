@@ -35,6 +35,7 @@ class ReportServiceEventTest {
     @Mock private PostRepository postRepository;
     @Mock private CommentRepository commentRepository;
     @Mock private KafkaTemplate<String, Object> kafkaTemplate;
+    @Mock private com.example.content.client.AuthServiceClient authServiceClient;
 
     @InjectMocks
     private ReportService reportService;

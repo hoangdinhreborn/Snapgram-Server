@@ -2,6 +2,7 @@ package com.example.content.service;
 
 import com.example.content.dto.CreateReportRequest;
 import com.example.content.dto.ReportResponse;
+import com.example.content.entity.Comment;
 import com.example.content.entity.Post;
 import com.example.content.entity.PostStatus;
 import com.example.content.entity.Report;
@@ -36,6 +37,7 @@ public class ReportService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final com.example.content.client.AuthServiceClient authServiceClient;
 
     @Transactional
     public ReportResponse createReport(UUID reporterId, CreateReportRequest request) {
@@ -120,17 +122,33 @@ public class ReportService {
             throw new InvalidStatusTransitionException("Dismissed report cannot be resolved");
         }
 
+        String targetOwnerId = null;
         if (report.getTargetType() == ReportTargetType.POST) {
-            postRepository.findById(report.getTargetId()).ifPresent(post -> {
+            var postOpt = postRepository.findById(report.getTargetId());
+            if (postOpt.isPresent()) {
+                Post post = postOpt.get();
+                targetOwnerId = post.getAuthorId().toString();
                 post.setStatus(PostStatus.DELETED);
                 postRepository.save(post);
                 log.info("Post {} marked as DELETED by admin {} due to report {}", post.getId(), adminId, id);
-            });
+            }
         } else if (report.getTargetType() == ReportTargetType.COMMENT) {
-            commentRepository.findById(report.getTargetId()).ifPresent(comment -> {
+            var commentOpt = commentRepository.findById(report.getTargetId());
+            if (commentOpt.isPresent()) {
+                Comment comment = commentOpt.get();
+                targetOwnerId = comment.getAuthorId().toString();
                 commentRepository.delete(comment);
                 log.info("Comment {} deleted by admin {} due to report {}", comment.getId(), adminId, id);
-            });
+            }
+        } else if (report.getTargetType() == ReportTargetType.USER) {
+            targetOwnerId = report.getTargetId().toString();
+            try {
+                String banReason = "Báo cáo vi phạm tiêu chuẩn cộng đồng: " + report.getReason();
+                authServiceClient.banUser(report.getTargetId(), banReason);
+                log.info("User {} auto-banned due to resolved report {}", report.getTargetId(), id);
+            } catch (Exception ex) {
+                log.warn("Failed to auto-ban user {} on report resolution: {}", report.getTargetId(), ex.getMessage());
+            }
         }
 
         report.setStatus(ReportStatus.RESOLVED);
@@ -142,6 +160,7 @@ public class ReportService {
                     .reporterId(updated.getReporterId().toString())
                     .targetType(updated.getTargetType().name())
                     .targetId(updated.getTargetId().toString())
+                    .targetOwnerId(targetOwnerId)
                     .reason(updated.getReason())
                     .status(ReportStatus.RESOLVED.name())
                     .moderatorId(adminId.toString())
@@ -180,7 +199,7 @@ public class ReportService {
     }
 
     private ReportResponse toResponse(Report r) {
-        return ReportResponse.builder()
+        ReportResponse.ReportResponseBuilder builder = ReportResponse.builder()
                 .id(r.getId().toString())
                 .reporterId(r.getReporterId().toString())
                 .targetType(r.getTargetType().name())
@@ -188,7 +207,70 @@ public class ReportService {
                 .reason(r.getReason())
                 .description(r.getDescription())
                 .status(r.getStatus().name())
-                .createdAt(r.getCreatedAt())
-                .build();
+                .createdAt(r.getCreatedAt());
+
+        if (r.getTargetType() == ReportTargetType.POST) {
+            postRepository.findById(r.getTargetId()).ifPresent(post -> {
+                builder.targetContent(post.getCaption())
+                       .targetStatus(post.getStatus() != null ? post.getStatus().name() : null)
+                       .targetCreatedAt(post.getCreatedAt())
+                       .targetAuthorId(post.getAuthorId().toString());
+
+                java.util.List<String> mediaUrls = new java.util.ArrayList<>();
+                if (post.getMediaUrl() != null && !post.getMediaUrl().isBlank()) {
+                    mediaUrls.add(post.getMediaUrl());
+                }
+                if (post.getMediaList() != null) {
+                    for (var m : post.getMediaList()) {
+                        if (m.getMediaUrl() != null && !m.getMediaUrl().isBlank() && !mediaUrls.contains(m.getMediaUrl())) {
+                            mediaUrls.add(m.getMediaUrl());
+                        }
+                    }
+                }
+                builder.targetMediaUrls(mediaUrls);
+
+                try {
+                    var author = authServiceClient.getUserSummary(post.getAuthorId());
+                    if (author != null) {
+                        builder.targetAuthorUsername(author.getUsername())
+                               .targetAuthorDisplayName(author.getDisplayName())
+                               .targetAuthorAvatarUrl(author.getAvatarUrl());
+                    }
+                } catch (Exception ignored) {}
+            });
+        } else if (r.getTargetType() == ReportTargetType.COMMENT) {
+            commentRepository.findById(r.getTargetId()).ifPresent(comment -> {
+                builder.targetContent(comment.getContent())
+                       .targetStatus("ACTIVE")
+                       .targetCreatedAt(comment.getCreatedAt())
+                       .targetAuthorId(comment.getAuthorId().toString());
+
+                if (comment.getMediaUrl() != null && !comment.getMediaUrl().isBlank()) {
+                    builder.targetMediaUrls(java.util.List.of(comment.getMediaUrl()));
+                }
+
+                try {
+                    var author = authServiceClient.getUserSummary(comment.getAuthorId());
+                    if (author != null) {
+                        builder.targetAuthorUsername(author.getUsername())
+                               .targetAuthorDisplayName(author.getDisplayName())
+                               .targetAuthorAvatarUrl(author.getAvatarUrl());
+                    }
+                } catch (Exception ignored) {}
+            });
+        } else if (r.getTargetType() == ReportTargetType.USER) {
+            try {
+                var author = authServiceClient.getUserSummary(r.getTargetId());
+                if (author != null) {
+                    builder.targetAuthorId(r.getTargetId().toString())
+                           .targetAuthorUsername(author.getUsername())
+                           .targetAuthorDisplayName(author.getDisplayName())
+                           .targetAuthorAvatarUrl(author.getAvatarUrl())
+                           .targetStatus("ACTIVE");
+                }
+            } catch (Exception ignored) {}
+        }
+
+        return builder.build();
     }
 }

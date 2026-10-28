@@ -62,9 +62,42 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
-                        // Admin-only endpoints protected by hasAuthority
+                        // RBAC & Roles/Permissions management: strictly ADMIN only
+                        .requestMatchers(
+                                "/api/auth/admin/roles/**",
+                                "/api/auth/admin/permissions/**"
+                        ).hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+
+                        // User Role Assignment: ADMIN or USER:ROLE_ASSIGN permission
+                        .requestMatchers(
+                                "/api/auth/admin/users/*/roles/**"
+                        ).hasAnyAuthority("ROLE_ADMIN", "ADMIN", "USER:ROLE_ASSIGN")
+
+                        // User Ban/Unban: ADMIN or USER:BAN / USER:UNBAN permission
+                        .requestMatchers(
+                                "/api/auth/admin/users/*/ban",
+                                "/api/auth/admin/users/*/unban"
+                        ).hasAnyAuthority("ROLE_ADMIN", "ADMIN", "USER:BAN", "USER:UNBAN")
+
+                        // User Create / Delete / Update: strictly ADMIN
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/auth/admin/users"
+                        ).hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.PUT, "/api/auth/admin/users/*"
+                        ).hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.DELETE, "/api/auth/admin/users/*"
+                        ).hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+
+                        // General Admin & Staff endpoints (e.g. view users list/detail): accessible to any staff role
                         .requestMatchers("/api/auth/admin/**", "/api/admin/**")
-                        .hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+                        .access((authentication, context) -> {
+                            boolean isStaff = authentication.get().getAuthorities().stream()
+                                    .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                                    .anyMatch(a -> !a.equalsIgnoreCase("ROLE_USER") && !a.equalsIgnoreCase("USER"));
+                            return new org.springframework.security.authorization.AuthorizationDecision(isStaff);
+                        })
                         // Users /me endpoints require authentication
                         .requestMatchers("/api/users/me", "/api/users/me/**")
                         .authenticated()

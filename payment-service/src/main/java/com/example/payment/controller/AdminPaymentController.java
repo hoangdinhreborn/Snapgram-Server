@@ -32,7 +32,7 @@ public class AdminPaymentController {
             @RequestParam(defaultValue = "createdAt,desc") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UserContext.requireAdmin();
+        UserContext.requirePermission("PAYMENT:READ");
         size = Math.min(size, 50);
         Pageable pageable = PageRequest.of(Math.max(page, 0), size, parseSort(sort));
         return ResponseEntity.ok(paymentService.listAll(status, userId, productCode, pageable));
@@ -44,7 +44,7 @@ public class AdminPaymentController {
      */
     @PostMapping("/{orderId}/reconcile")
     public ResponseEntity<PaymentOrderResponse> reconcile(@PathVariable String orderId) {
-        UserContext.requireAdmin();
+        UserContext.requirePermission("PAYMENT:RECONCILE");
         return ResponseEntity.ok(paymentService.reconcile(orderId));
     }
 
