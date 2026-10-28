@@ -255,6 +255,35 @@ class NotificationConsumerServiceTest {
     }
 
     @Test
+    void shouldNotifyTargetOwnerWhenReportIsResolved() {
+        notificationConsumerService = newConsumer();
+        when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        UUID reporterId = UUID.randomUUID();
+        UUID targetOwnerId = UUID.randomUUID();
+        String reportId = UUID.randomUUID().toString();
+
+        notificationConsumerService.handleModerationEvent(ModerationEvent.builder()
+                .reporterId(reporterId.toString())
+                .targetOwnerId(targetOwnerId.toString())
+                .targetType("POST")
+                .targetId(UUID.randomUUID().toString())
+                .reason("SPAM")
+                .reportId(reportId)
+                .status("RESOLVED")
+                .build());
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        var notifications = captor.getAllValues();
+        assertThat(notifications.get(0).getUserId()).isEqualTo(reporterId);
+        assertThat(notifications.get(0).getType()).isEqualTo(NotificationType.REPORT_RESOLVED);
+
+        assertThat(notifications.get(1).getUserId()).isEqualTo(targetOwnerId);
+        assertThat(notifications.get(1).getType()).isEqualTo(NotificationType.SYSTEM);
+    }
+
+    @Test
     void shouldNotifyCalleeOnlyForMissedCall() {
         notificationConsumerService = newConsumer();
         when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))

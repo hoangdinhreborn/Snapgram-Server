@@ -17,4 +17,14 @@ public class ReportResponse {
     private String description;
     private String status;
     private Instant createdAt;
+
+    // Target content preview (Admin inspection)
+    private String targetContent;
+    private java.util.List<String> targetMediaUrls;
+    private String targetAuthorId;
+    private String targetAuthorUsername;
+    private String targetAuthorDisplayName;
+    private String targetAuthorAvatarUrl;
+    private String targetStatus;
+    private Instant targetCreatedAt;
 }

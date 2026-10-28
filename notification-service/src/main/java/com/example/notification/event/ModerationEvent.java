@@ -18,6 +18,7 @@ public class ModerationEvent {
     private String reporterId;
     private String targetType;
     private String targetId;
+    private String targetOwnerId;
     private String reason;
     private String status;
     private String moderatorId;
