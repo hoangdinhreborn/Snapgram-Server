@@ -15,6 +15,7 @@ public final class UserContext {
 
     public static final String HEADER_USER_ID = "X-User-Id";
     public static final String HEADER_USER_ROLES = "X-User-Roles";
+    public static final String HEADER_USER_PERMISSIONS = "X-User-Permissions";
 
     private UserContext() {
     }
@@ -52,6 +53,27 @@ public final class UserContext {
         return getUserRoles().stream()
                 .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
                 .anyMatch(r -> r.equalsIgnoreCase("ADMIN"));
+    }
+
+    public static List<String> getUserPermissions() {
+        String permsStr = getRequest().getHeader(HEADER_USER_PERMISSIONS);
+        if (permsStr == null || permsStr.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(permsStr.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+    }
+
+    public static boolean hasPermission(String permission) {
+        if (isAdmin()) return true;
+        if (permission == null || permission.isBlank()) return false;
+        return getUserPermissions().stream()
+                .anyMatch(p -> p.equalsIgnoreCase(permission.trim()));
+    }
+
+    public static void requirePermission(String permission) {
+        if (!hasPermission(permission)) {
+            throw new AccessDeniedException("Access denied: Permission '" + permission + "' required");
+        }
     }
 
     /** Chan endpoint admin: khong phai ADMIN -> 403. */
