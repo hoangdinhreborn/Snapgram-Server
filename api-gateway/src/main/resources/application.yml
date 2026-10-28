@@ -25,7 +25,7 @@ spring:
             - id: content-service
               uri: lb://content-service
               predicates:
-                - Path=/api/content/**,/api/posts/**,/api/stories/**,/api/highlights/**,/api/saved/**,/api/reports/**,/api/hashtags/**,/api/follows/**,/api/social/**,/api/admin/reports/**,/api/admin/content/**,/api/admin/posts/**
+                - Path=/api/content/**,/api/posts/**,/api/stories/**,/api/highlights/**,/api/saved/**,/api/reports/**,/api/hashtags/**,/api/follows/**,/api/social/**,/api/support/**,/api/admin/reports/**,/api/admin/content/**,/api/admin/posts/**,/api/admin/support/**
 
             - id: chat-service
               uri: lb://chat-service
