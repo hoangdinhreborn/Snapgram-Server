@@ -1,8 +1,11 @@
 package com.example.auth.service;
 
 import com.example.auth.dto.AdminUserResponse;
+import com.example.auth.dto.CreateAdminUserRequest;
+import com.example.auth.dto.UpdateAdminUserRequest;
 import com.example.auth.entity.AuthRefreshToken;
 import com.example.auth.entity.AuthUser;
+import com.example.auth.exception.DuplicateUserException;
 import com.example.auth.exception.UserNotFoundException;
 import com.example.auth.repository.AuthRefreshTokenRepository;
 import com.example.auth.repository.AuthUserRepository;
@@ -14,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +34,7 @@ public class AdminService {
     private final AuthRefreshTokenRepository refreshTokenRepository;
     private final RoleService roleService;
     private final AuthUserRoleRepository userRoleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${app.admin.bootstrap-secret:snapgram-admin-bootstrap-secret}")
     private String bootstrapSecret;
@@ -151,6 +156,112 @@ public class AdminService {
         roleService.syncUserRoles(userId, roles);
         log.info("Synced roles for user {}: {}", userId, roles);
         return getUser(userId);
+    }
+
+    /**
+     * Admin: Create a new user account.
+     */
+    @Transactional
+    public AdminUserResponse createUser(CreateAdminUserRequest request) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new DuplicateUserException("Username already exists");
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new DuplicateUserException("Email already exists");
+        }
+
+        AuthUser user = new AuthUser();
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setDisplayName(request.getDisplayName() != null && !request.getDisplayName().isBlank()
+                ? request.getDisplayName()
+                : request.getUsername());
+        user.setEmailVerified(Boolean.TRUE.equals(request.getEmailVerified()));
+        user.setRole(com.example.auth.entity.Role.USER);
+        AuthUser saved = userRepository.save(user);
+
+        // Assign default USER role
+        roleService.assignRole(saved.getId(), "USER");
+
+        // Assign additional roles if specified
+        if (request.getRoles() != null) {
+            for (String r : request.getRoles()) {
+                if (r != null && !r.isBlank() && !"USER".equalsIgnoreCase(r.trim())) {
+                    roleService.assignRole(saved.getId(), r.trim().toUpperCase());
+                }
+            }
+        }
+
+        log.info("Admin created new user: id={}, username={}", saved.getId(), saved.getUsername());
+        return getUser(saved.getId());
+    }
+
+    /**
+     * Admin: Update user information (display name, email, emailVerified, password, roles).
+     */
+    @Transactional
+    public AdminUserResponse updateUser(UUID userId, UpdateAdminUserRequest request) {
+        AuthUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()
+                && !request.getEmail().equalsIgnoreCase(user.getEmail())) {
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new DuplicateUserException("Email already exists");
+            }
+            user.setEmail(request.getEmail());
+        }
+
+        if (request.getDisplayName() != null) {
+            user.setDisplayName(request.getDisplayName());
+        }
+
+        if (request.getEmailVerified() != null) {
+            user.setEmailVerified(request.getEmailVerified());
+        }
+
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            // Revoke active sessions on password change
+            List<AuthRefreshToken> activeTokens = refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(userId);
+            if (!activeTokens.isEmpty()) {
+                activeTokens.forEach(t -> t.setRevokedAt(Instant.now()));
+                refreshTokenRepository.saveAll(activeTokens);
+                log.info("Revoked {} refresh tokens for user {} due to admin password reset", activeTokens.size(), userId);
+            }
+        }
+
+        if (request.getRoles() != null && !request.getRoles().isEmpty()) {
+            roleService.syncUserRoles(userId, request.getRoles());
+        }
+
+        AuthUser saved = userRepository.save(user);
+        log.info("Admin updated user: id={}", saved.getId());
+        return getUser(saved.getId());
+    }
+
+    /**
+     * Admin: Delete user account.
+     */
+    @Transactional
+    public void deleteUser(UUID currentAdminId, UUID userId) {
+        if (currentAdminId != null && currentAdminId.equals(userId)) {
+            throw new IllegalArgumentException("Cannot delete your own admin account");
+        }
+
+        AuthUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
+
+        // Revoke all tokens
+        List<AuthRefreshToken> tokens = refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(userId);
+        if (!tokens.isEmpty()) {
+            tokens.forEach(t -> t.setRevokedAt(Instant.now()));
+            refreshTokenRepository.saveAll(tokens);
+        }
+
+        userRepository.delete(user);
+        log.info("Admin {} deleted user {}", currentAdminId, userId);
     }
 
     /**

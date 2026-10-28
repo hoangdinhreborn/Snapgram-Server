@@ -1,9 +1,6 @@
 package com.example.auth.controller;
 
-import com.example.auth.dto.AdminUserResponse;
-import com.example.auth.dto.AssignRoleRequest;
-import com.example.auth.dto.BanUserRequest;
-import com.example.auth.dto.BootstrapAdminRequest;
+import com.example.auth.dto.*;
 import com.example.auth.security.SecurityUtils;
 import com.example.auth.service.AdminService;
 import jakarta.validation.Valid;
@@ -12,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -68,6 +66,38 @@ public class AdminController {
     @GetMapping("/users/{userId}")
     public ResponseEntity<AdminUserResponse> getUser(@PathVariable UUID userId) {
         return ResponseEntity.ok(adminService.getUser(userId));
+    }
+
+    /**
+     * POST /api/auth/admin/users
+     * Admin: Create a new user account with initial role and credentials.
+     */
+    @PostMapping("/users")
+    public ResponseEntity<AdminUserResponse> createUser(
+            @Valid @RequestBody CreateAdminUserRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(adminService.createUser(request));
+    }
+
+    /**
+     * PUT /api/auth/admin/users/{userId}
+     * Admin: Update user details (display name, email, password, roles, emailVerified).
+     */
+    @PutMapping("/users/{userId}")
+    public ResponseEntity<AdminUserResponse> updateUser(
+            @PathVariable UUID userId,
+            @Valid @RequestBody UpdateAdminUserRequest request) {
+        return ResponseEntity.ok(adminService.updateUser(userId, request));
+    }
+
+    /**
+     * DELETE /api/auth/admin/users/{userId}
+     * Admin: Permanently delete a user account.
+     */
+    @DeleteMapping("/users/{userId}")
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
+        UUID currentAdminId = SecurityUtils.getCurrentUserId();
+        adminService.deleteUser(currentAdminId, userId);
+        return ResponseEntity.noContent().build();
     }
 
     /**
