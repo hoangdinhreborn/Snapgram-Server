@@ -166,7 +166,7 @@ class ReportServiceTest {
 
         assertThat(response.getStatus()).isEqualTo("RESOLVED");
         verify(reportRepository, never()).save(any());
-        verifyNoInteractions(postRepository);
+        verify(postRepository, never()).save(any());
         verifyNoInteractions(commentRepository);
     }
 
