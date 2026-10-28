@@ -1,5 +1,8 @@
 package com.example.media.exception;
 
+import com.example.media.ai.AiServiceUnavailableException;
+import com.example.media.ai.AiTimeoutException;
+import com.example.media.ai.RateLimitExceededException;
 import com.example.media.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -69,6 +72,28 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimit(RateLimitExceededException ex) {
+        log.warn("AI Rate limit exceeded: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(ErrorResponse.of(429, "RATE_LIMIT_EXCEEDED", "Too Many Requests", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AiTimeoutException.class)
+    public ResponseEntity<ErrorResponse> handleAiTimeout(AiTimeoutException ex) {
+        log.warn("AI Gateway Timeout: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+                .body(ErrorResponse.of(504, "AI_TIMEOUT", "Gateway Timeout", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AiServiceUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleAiUnavailable(AiServiceUnavailableException ex) {
+        log.warn("AI Service Unavailable: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of(503, "AI_SERVICE_UNAVAILABLE", "Service Unavailable", ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

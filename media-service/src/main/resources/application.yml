@@ -9,6 +9,13 @@ app:
     secret-key: ${MINIO_ROOT_PASSWORD:snapgram-minio-dev-password}
     bucket: ${MINIO_BUCKET:snapgram-media}
     public-url: ${MINIO_PUBLIC_URL:http://localhost:9000/snapgram-media}
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      model: ${OLLAMA_MODEL:gemma4:31b-cloud}
+      api-key: ${OLLAMA_API_KEY:}
+      timeout-seconds: 30
+      temperature: 0.7
 
 spring:
   application:
