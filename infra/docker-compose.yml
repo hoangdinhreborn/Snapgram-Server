@@ -327,9 +327,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_EXTERNAL_ENDPOINT: ${MINIO_EXTERNAL_ENDPOINT:-http://localhost:9000}
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000/snapgram-media}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:31b}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      # OLLAMA_* lay tu env_file ../.env — khong khai bao ${...} o day vi compose noi suy tu shell de len env_file
     depends_on:
       postgres-media:
         condition: service_healthy
