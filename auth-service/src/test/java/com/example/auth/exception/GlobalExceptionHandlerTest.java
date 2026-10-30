@@ -1,6 +1,6 @@
 package com.example.auth.exception;
 
-import com.example.auth.dto.ErrorResponse;
+import com.example.auth.dto.common.ErrorResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;

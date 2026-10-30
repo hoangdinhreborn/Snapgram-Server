@@ -1,9 +1,9 @@
 package com.example.auth.service;
 
 import com.example.auth.client.FacebookClient;
-import com.example.auth.dto.AuthResponse;
-import com.example.auth.dto.FacebookLoginRequest;
-import com.example.auth.dto.FacebookUserProfile;
+import com.example.auth.dto.auth.AuthResponse;
+import com.example.auth.dto.auth.FacebookLoginRequest;
+import com.example.auth.dto.auth.FacebookUserProfile;
 import com.example.auth.entity.AuthOAuthAccount;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.entity.Role;

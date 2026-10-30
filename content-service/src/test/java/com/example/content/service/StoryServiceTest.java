@@ -1,6 +1,6 @@
 package com.example.content.service;
 
-import com.example.content.dto.CreateStoryRequest;
+import com.example.content.dto.story.CreateStoryRequest;
 import com.example.content.entity.Story;
 import com.example.content.entity.Visibility;
 import com.example.content.event.StoryCreatedEvent;

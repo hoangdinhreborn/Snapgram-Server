@@ -1,13 +1,13 @@
 package com.example.chat.controller;
 
-import com.example.chat.dto.ConversationResponse;
-import com.example.chat.dto.CreateDirectConversationRequest;
-import com.example.chat.dto.MarkReadRequest;
-import com.example.chat.dto.MessagePageResponse;
-import com.example.chat.dto.MessageResponse;
-import com.example.chat.dto.SendMessageRequest;
-import com.example.chat.dto.TypingRequest;
-import com.example.chat.dto.UnreadCountResponse;
+import com.example.chat.dto.conversation.ConversationResponse;
+import com.example.chat.dto.conversation.CreateDirectConversationRequest;
+import com.example.chat.dto.message.MarkReadRequest;
+import com.example.chat.dto.message.MessagePageResponse;
+import com.example.chat.dto.message.MessageResponse;
+import com.example.chat.dto.message.SendMessageRequest;
+import com.example.chat.dto.message.TypingRequest;
+import com.example.chat.dto.conversation.UnreadCountResponse;
 import com.example.chat.service.ChatService;
 import com.example.chat.util.UserContext;
 import jakarta.validation.Valid;

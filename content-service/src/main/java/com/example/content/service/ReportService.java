@@ -1,7 +1,7 @@
 package com.example.content.service;
 
-import com.example.content.dto.CreateReportRequest;
-import com.example.content.dto.ReportResponse;
+import com.example.content.dto.report.CreateReportRequest;
+import com.example.content.dto.report.ReportResponse;
 import com.example.content.entity.Comment;
 import com.example.content.entity.Post;
 import com.example.content.entity.PostStatus;

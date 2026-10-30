@@ -1,6 +1,10 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.*;
+import com.example.auth.dto.admin.*;
+import com.example.auth.dto.auth.*;
+import com.example.auth.dto.common.*;
+import com.example.auth.dto.rbac.*;
+import com.example.auth.dto.user.*;
 import com.example.auth.entity.AuthBlock;
 import com.example.auth.entity.AuthNote;
 import com.example.auth.entity.AuthUser;

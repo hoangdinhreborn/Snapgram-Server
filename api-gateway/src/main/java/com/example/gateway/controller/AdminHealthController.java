@@ -18,7 +18,7 @@ import java.time.Duration;
 import java.util.*;
 
 /**
- * Controller kiểm tra sức khỏe của toàn bộ 9 microservices nội bộ.
+ * Controller kiểm tra sức khỏe của toàn bộ 8 microservices nội bộ.
  * Chỉ cho phép người dùng có role ADMIN truy cập.
  * Phục vụ cho Admin Portal theo kiến trúc Gateway-First (Mô hình B).
  */
@@ -42,7 +42,6 @@ public class AdminHealthController {
             WebClient authWebClient,
             JwtPayloadUtil jwtPayloadUtil,
             @Value("${AUTH_SERVICE_URL:http://localhost:8081}") String authUrl,
-            @Value("${CHATBOT_SERVICE_URL:http://localhost:8082}") String chatbotUrl,
             @Value("${CHAT_SERVICE_URL:http://localhost:8083}") String chatUrl,
             @Value("${CONTENT_SERVICE_URL:http://localhost:8084}") String contentUrl,
             @Value("${MEDIA_SERVICE_URL:http://localhost:8085}") String mediaUrl,
@@ -54,7 +53,6 @@ public class AdminHealthController {
         this.jwtPayloadUtil = jwtPayloadUtil;
         this.webClient = WebClient.builder().build();
         serviceUrls.put("auth", authUrl);
-        serviceUrls.put("chatbot", chatbotUrl);
         serviceUrls.put("chat", chatUrl);
         serviceUrls.put("content", contentUrl);
         serviceUrls.put("media", mediaUrl);

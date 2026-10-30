@@ -1,6 +1,6 @@
 package com.example.chat.service;
 
-import com.example.chat.dto.MessageResponse;
+import com.example.chat.dto.message.MessageResponse;
 import com.example.chat.repository.ConversationMemberRepository;
 import com.example.chat.websocket.ChatSessionRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;

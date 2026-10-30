@@ -1,7 +1,7 @@
 package com.example.content.controller;
 
-import com.example.content.dto.CreateReportRequest;
-import com.example.content.dto.ReportResponse;
+import com.example.content.dto.report.CreateReportRequest;
+import com.example.content.dto.report.ReportResponse;
 import com.example.content.service.ReportService;
 import com.example.content.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

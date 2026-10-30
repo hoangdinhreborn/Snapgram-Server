@@ -1,8 +1,8 @@
 package com.example.payment.service;
 
-import com.example.payment.dto.CreatePaymentResponse;
-import com.example.payment.dto.PaymentCallbackResult;
-import com.example.payment.dto.PaymentOrderResponse;
+import com.example.payment.dto.payment.CreatePaymentResponse;
+import com.example.payment.dto.payment.PaymentCallbackResult;
+import com.example.payment.dto.payment.PaymentOrderResponse;
 import com.example.payment.entity.PaymentOrder;
 import com.example.payment.entity.PaymentStatus;
 import com.example.payment.exception.NotFoundException;

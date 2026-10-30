@@ -1,8 +1,8 @@
 package com.example.content.service;
 
-import com.example.content.dto.StoryResponse;
-import com.example.content.dto.CreateStoryRequest;
-import com.example.content.dto.StoryViewerResponse;
+import com.example.content.dto.story.StoryResponse;
+import com.example.content.dto.story.CreateStoryRequest;
+import com.example.content.dto.story.StoryViewerResponse;
 import com.example.content.entity.*;
 import com.example.content.event.StoryCreatedEvent;
 import com.example.content.exception.AccessDeniedException;

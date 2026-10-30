@@ -1,8 +1,8 @@
 package com.example.content.controller;
 
-import com.example.content.dto.CreateHighlightRequest;
-import com.example.content.dto.HighlightDetailResponse;
-import com.example.content.dto.HighlightResponse;
+import com.example.content.dto.story.CreateHighlightRequest;
+import com.example.content.dto.story.HighlightDetailResponse;
+import com.example.content.dto.story.HighlightResponse;
 import com.example.content.service.HighlightService;
 import com.example.content.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

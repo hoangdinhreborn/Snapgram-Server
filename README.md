@@ -2,6 +2,8 @@
 
 Dự án **Snapgram** là một hệ thống mạng xã hội được xây dựng theo kiến trúc **microservices** sử dụng **Java / Spring Boot**. Tài liệu này dành cho **tất cả thành viên trong team**, cung cấp thông tin cần thiết để bắt đầu làm việc nhanh chóng.
 
+> 🚀 **Dành cho Developer:** Vui lòng đọc tài liệu chi tiết [Hướng Dẫn Kiến Trúc & Luồng Xử Lý Code (Developer Guide)](docs/DEVELOPER_GUIDE.md) để nắm bắt kiến trúc phân tầng (Controller ➔ Service ➔ Repository/Kafka ➔ DTO), phân luồng DTO theo chức năng, các luồng nghiệp vụ mẫu và quy trình thêm tính năng mới.
+
 ---
 
 ## Mục lục
@@ -12,6 +14,7 @@ Dự án **Snapgram** là một hệ thống mạng xã hội được xây dự
 4. [Hướng dẫn chạy project](#4-hướng-dẫn-chạy-project)
 5. [Quy trình làm việc](#5-quy-trình-làm-việc)
 6. [Tài liệu tham khảo thêm](#6-tài-liệu-tham-khảo-thêm)
+7. [Hướng dẫn Kiến trúc & Đọc Code (Developer Guide)](docs/DEVELOPER_GUIDE.md)
 
 ---
 
@@ -21,12 +24,12 @@ Dự án **Snapgram** là một hệ thống mạng xã hội được xây dự
 |-----------------------|----------------------------------------|------------|-----------------------------|
 | `api-gateway`         | Cổng duy nhất tiếp nhận request ngoài | `8080`     | `api-gateway:8080`          |
 | `auth-service`        | Đăng ký, đăng nhập, quản lý token     | `8081`     | `auth-service:8081`         |
-| `chat-service`        | Nhắn tin real-time                     | `8082`     | `chat-service:8082`         |
+| `chat-service`        | Nhắn tin real-time                     | `8083`     | `chat-service:8083`         |
 | `content-service`     | Bài viết, bình luận, like             | `8084`     | `content-service:8084`      |
 | `media-service`       | Upload & quản lý ảnh/video             | `8085`     | `media-service:8085`        |
 | `notification-service`| Gửi thông báo (email, push)            | `8086`     | `notification-service:8086` |
-| `chatbot-service`     | Tích hợp AI chatbot                    | `8087`     | `chatbot-service:8087`      |
-| `recommender-service` | Gợi ý nội dung / người dùng           | `8088`     | `recommender-service:8088`  |
+| `payment-service`     | Cổng thanh toán MoMo, VNPay           | `8087`     | `payment-service:8087`      |
+| `recommender-service` | Gợi ý nội dung / người dùng           | `8090`     | `recommender-service:8090`  |
 
 ---
 
@@ -384,11 +387,14 @@ com.example.<service>/
 ├── service/       ← business logic
 ├── repository/    ← JPA repositories
 ├── entity/        ← JPA entities (ánh xạ bảng DB)
-├── dto/           ← Data Transfer Objects (request/response)
-├── exception/     ← custom exceptions (bao gồm UnauthorizedException)
-├── config/        ← Spring configuration
+├── dto/           ← Data Transfer Objects (tách theo từng nhóm chức năng)
+│   ├── <chức_năng_A>/  ← Request & Response của chức năng A
+│   ├── <chức_năng_B>/  ← Request & Response của chức năng B
+│   └── common/         ← DTO dùng chung (ErrorResponse, v.v.)
+├── exception/     ← custom exceptions & GlobalExceptionHandler
+├── config/        ← Spring configuration (Security, Swagger, Kafka, Redis)
 ├── util/          ← UserContext và các helper khác  ⬅ quan trọng
-└── event/         ← Kafka producer/consumer
+└── event/         ← Kafka producer/consumer & Domain Events
 ```
 
 ### 5.5 DOs & DON'Ts
@@ -408,6 +414,7 @@ com.example.<service>/
 
 | Tài liệu                                                        | Nội dung                                |
 |-----------------------------------------------------------------|-----------------------------------------|
+| `docs/DEVELOPER_GUIDE.md`                                       | **Hướng dẫn đọc code & luồng kiến trúc (Developer Guide)** |
 | `docs/run/API_GATEWAY_AND_SERVICE_COMMUNICATION.md`            | Chi tiết giao tiếp inter-service        |
 | `docs/run/DOCKER_SETUP.md`                                     | Hướng dẫn Docker đầy đủ                |
 | `docs/database/README.md`                                      | Hướng dẫn Flyway migration              |

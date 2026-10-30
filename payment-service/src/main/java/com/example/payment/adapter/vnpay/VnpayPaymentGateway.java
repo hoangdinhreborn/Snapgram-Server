@@ -1,6 +1,6 @@
 package com.example.payment.adapter.vnpay;
 
-import com.example.payment.dto.PaymentCallbackResult;
+import com.example.payment.dto.payment.PaymentCallbackResult;
 import com.example.payment.port.PaymentGateway;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

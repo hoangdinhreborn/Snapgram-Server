@@ -1,8 +1,8 @@
 package com.example.media.controller;
 
-import com.example.media.dto.MediaResponse;
-import com.example.media.dto.PresignedUrlRequest;
-import com.example.media.dto.PresignedUrlResponse;
+import com.example.media.dto.media.MediaResponse;
+import com.example.media.dto.media.PresignedUrlRequest;
+import com.example.media.dto.media.PresignedUrlResponse;
 import com.example.media.service.MediaService;
 import com.example.media.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

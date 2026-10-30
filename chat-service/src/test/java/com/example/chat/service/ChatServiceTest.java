@@ -1,10 +1,10 @@
 package com.example.chat.service;
 
 import com.example.chat.client.AuthServiceClient;
-import com.example.chat.dto.ConversationResponse;
-import com.example.chat.dto.MessagePageResponse;
-import com.example.chat.dto.MessageResponse;
-import com.example.chat.dto.SendMessageRequest;
+import com.example.chat.dto.conversation.ConversationResponse;
+import com.example.chat.dto.message.MessagePageResponse;
+import com.example.chat.dto.message.MessageResponse;
+import com.example.chat.dto.message.SendMessageRequest;
 import com.example.chat.entity.Conversation;
 import com.example.chat.entity.ConversationMember;
 import com.example.chat.entity.Message;

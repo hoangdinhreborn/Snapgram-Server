@@ -1,6 +1,6 @@
 package com.example.content.controller;
 
-import com.example.content.dto.ReportResponse;
+import com.example.content.dto.report.ReportResponse;
 import com.example.content.entity.ReportStatus;
 import com.example.content.entity.ReportTargetType;
 import com.example.content.service.ReportService;

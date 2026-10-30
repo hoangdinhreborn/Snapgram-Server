@@ -2,7 +2,7 @@ package com.example.payment;
 
 import com.example.payment.adapter.vnpay.VnpaySigner;
 import com.example.payment.controller.VnpayCallbackController;
-import com.example.payment.dto.PaymentCallbackResult;
+import com.example.payment.dto.payment.PaymentCallbackResult;
 import com.example.payment.entity.PaymentOrder;
 import com.example.payment.entity.PaymentStatus;
 import com.example.payment.exception.AccessDeniedException;

@@ -1,7 +1,7 @@
 package com.example.content.controller;
 
-import com.example.content.dto.CreateSupportTicketRequest;
-import com.example.content.dto.SupportTicketResponse;
+import com.example.content.dto.ticket.CreateSupportTicketRequest;
+import com.example.content.dto.ticket.SupportTicketResponse;
 import com.example.content.service.SupportTicketService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

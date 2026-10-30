@@ -1,6 +1,13 @@
 package com.example.content.controller;
 
-import com.example.content.dto.*;
+import com.example.content.dto.comment.*;
+import com.example.content.dto.follow.*;
+import com.example.content.dto.hashtag.*;
+import com.example.content.dto.interaction.*;
+import com.example.content.dto.post.*;
+import com.example.content.dto.report.*;
+import com.example.content.dto.story.*;
+import com.example.content.dto.ticket.*;
 import com.example.content.service.PostService;
 import com.example.content.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

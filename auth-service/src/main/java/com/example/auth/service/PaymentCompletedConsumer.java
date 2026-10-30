@@ -1,7 +1,7 @@
 package com.example.auth.service;
 
 import com.example.auth.config.PaymentGrantProperties;
-import com.example.auth.dto.PaymentCompletedEvent;
+import com.example.auth.event.PaymentCompletedEvent;
 import com.example.auth.entity.AuthPaymentProcessedEvent;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.repository.AuthPaymentProcessedEventRepository;

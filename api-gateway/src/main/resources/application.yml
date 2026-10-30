@@ -39,11 +39,6 @@ spring:
               predicates:
                 - Path=/ws/chat/**
 
-            - id: chatbot-service
-              uri: lb://chatbot-service
-              predicates:
-                - Path=/api/bot/**
-
             - id: recommender-service
               uri: lb://recommender-service
               predicates:
@@ -83,8 +78,6 @@ spring:
               - uri: ${CONTENT_SERVICE_URL:http://localhost:8084}
             chat-service:
               - uri: ${CHAT_SERVICE_URL:http://localhost:8083}
-            chatbot-service:
-              - uri: ${CHATBOT_SERVICE_URL:http://localhost:8082}
             recommender-service:
               - uri: ${RECOMMENDER_SERVICE_URL:http://localhost:8090}
             media-service:

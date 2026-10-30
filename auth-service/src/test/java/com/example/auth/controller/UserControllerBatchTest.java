@@ -1,7 +1,7 @@
 package com.example.auth.controller;
 
-import com.example.auth.dto.BatchUserRequest;
-import com.example.auth.dto.UserSummaryDto;
+import com.example.auth.dto.user.BatchUserRequest;
+import com.example.auth.dto.user.UserSummaryDto;
 import com.example.auth.service.EmailVerificationService;
 import com.example.auth.service.TwoFaService;
 import com.example.auth.service.UserService;

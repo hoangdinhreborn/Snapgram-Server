@@ -1,6 +1,6 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.PermissionResponse;
+import com.example.auth.dto.rbac.PermissionResponse;
 import com.example.auth.entity.AuthPermission;
 import com.example.auth.repository.AuthPermissionRepository;
 import com.example.auth.repository.AuthRoleRepository;

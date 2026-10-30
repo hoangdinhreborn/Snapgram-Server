@@ -1,6 +1,6 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.ChangeEmailRequest;
+import com.example.auth.dto.auth.ChangeEmailRequest;
 import com.example.auth.entity.AuthEmailVerification;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.exception.DuplicateUserException;

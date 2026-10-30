@@ -1,7 +1,7 @@
 package com.example.content.controller;
 
-import com.example.content.dto.ReplySupportTicketRequest;
-import com.example.content.dto.SupportTicketResponse;
+import com.example.content.dto.ticket.ReplySupportTicketRequest;
+import com.example.content.dto.ticket.SupportTicketResponse;
 import com.example.content.entity.SupportTicketCategory;
 import com.example.content.entity.SupportTicketPriority;
 import com.example.content.entity.SupportTicketStatus;

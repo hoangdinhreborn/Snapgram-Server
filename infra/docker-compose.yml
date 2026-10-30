@@ -101,22 +101,6 @@ services:
       timeout: 5s
       retries: 12
 
-  postgres-bot:
-    image: postgres:17
-    container_name: snapgram-postgres-bot
-    restart: unless-stopped
-    ports:
-      - "5434:5432"
-    environment:
-      <<: *pg-env
-    volumes:
-      - postgres_bot_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U snapgram"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-
   postgres-content:
     image: postgres:17
     container_name: snapgram-postgres-content
@@ -261,35 +245,6 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
-      interval: 15s
-      timeout: 10s
-      retries: 8
-      start_period: 60s
-
-  chatbot-service:
-    build:
-      context: ..
-      dockerfile: chatbot-service/Dockerfile
-    image: snapgram/chatbot-service:latest
-    container_name: snapgram-chatbot-service
-    restart: unless-stopped
-    ports:
-      - "8082:8082"
-    env_file:
-      - ../.env
-    environment:
-      DB_URL: jdbc:postgresql://postgres-bot:5432/snapgram
-      REDIS_HOST: redis
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on:
-      postgres-bot:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 15s
       timeout: 10s
       retries: 8
@@ -477,7 +432,6 @@ services:
       CHAT_WS_URL: ws://chat-service:8083
       NOTIFICATION_SERVICE_URL: http://notification-service:8086
       NOTIFICATION_WS_URL: ws://notification-service:8086
-      CHATBOT_SERVICE_URL: http://chatbot-service:8082
       RECOMMENDER_SERVICE_URL: http://recommender-service:8090
       MEDIA_SERVICE_URL: http://media-service:8085
       PAYMENT_SERVICE_URL: http://payment-service:8087
@@ -526,7 +480,6 @@ volumes:
   redis_data:
   postgres_auth_data:
   postgres_chat_data:
-  postgres_bot_data:
   postgres_content_data:
   postgres_recommender_data:
   postgres_media_data:

@@ -1,7 +1,7 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.AuthResponse;
-import com.example.auth.dto.LoginRequest;
+import com.example.auth.dto.auth.AuthResponse;
+import com.example.auth.dto.auth.LoginRequest;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.entity.Role;
 import com.example.auth.exception.AccountLockedException;

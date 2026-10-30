@@ -1,9 +1,9 @@
 package com.example.content.service;
 
-import com.example.content.dto.CreateHighlightRequest;
-import com.example.content.dto.HighlightDetailResponse;
-import com.example.content.dto.HighlightResponse;
-import com.example.content.dto.StoryResponse;
+import com.example.content.dto.story.CreateHighlightRequest;
+import com.example.content.dto.story.HighlightDetailResponse;
+import com.example.content.dto.story.HighlightResponse;
+import com.example.content.dto.story.StoryResponse;
 import com.example.content.entity.Highlight;
 import com.example.content.entity.HighlightItem;
 import com.example.content.entity.Story;

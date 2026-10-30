@@ -1,9 +1,9 @@
 package com.example.content.service;
 
-import com.example.content.dto.CollectionResponse;
-import com.example.content.dto.CreateCollectionRequest;
-import com.example.content.dto.PostResponse;
-import com.example.content.dto.SavePostRequest;
+import com.example.content.dto.post.CollectionResponse;
+import com.example.content.dto.post.CreateCollectionRequest;
+import com.example.content.dto.post.PostResponse;
+import com.example.content.dto.post.SavePostRequest;
 import com.example.content.entity.*;
 import com.example.content.exception.AccessDeniedException;
 import com.example.content.exception.ContentNotFoundException;

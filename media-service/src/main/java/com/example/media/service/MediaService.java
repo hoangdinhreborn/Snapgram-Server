@@ -1,8 +1,8 @@
 package com.example.media.service;
 
-import com.example.media.dto.MediaResponse;
-import com.example.media.dto.PresignedUrlRequest;
-import com.example.media.dto.PresignedUrlResponse;
+import com.example.media.dto.media.MediaResponse;
+import com.example.media.dto.media.PresignedUrlRequest;
+import com.example.media.dto.media.PresignedUrlResponse;
 import com.example.media.entity.MediaFile;
 import com.example.media.entity.MediaMetadata;
 import com.example.media.entity.MediaStatus;

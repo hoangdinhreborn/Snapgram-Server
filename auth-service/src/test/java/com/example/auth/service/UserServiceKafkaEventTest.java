@@ -1,6 +1,6 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.PrivacySettingRequest;
+import com.example.auth.dto.user.PrivacySettingRequest;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.repository.AuthBlockRepository;
 import com.example.auth.repository.AuthNoteRepository;

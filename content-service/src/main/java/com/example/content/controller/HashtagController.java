@@ -1,7 +1,7 @@
 package com.example.content.controller;
 
-import com.example.content.dto.HashtagResponse;
-import com.example.content.dto.PostResponse;
+import com.example.content.dto.hashtag.HashtagResponse;
+import com.example.content.dto.post.PostResponse;
 import com.example.content.service.HashtagService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

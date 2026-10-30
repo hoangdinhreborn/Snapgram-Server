@@ -1,6 +1,6 @@
 package com.example.auth.controller;
 
-import com.example.auth.dto.AdminDashboardResponse;
+import com.example.auth.dto.admin.AdminDashboardResponse;
 import com.example.auth.service.AdminDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

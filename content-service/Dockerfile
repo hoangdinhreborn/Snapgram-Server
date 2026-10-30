@@ -9,7 +9,6 @@ COPY pom.xml /build/pom.xml
 # Copy all service poms (required by root pom)
 COPY auth-service/pom.xml /build/auth-service/pom.xml
 COPY chat-service/pom.xml /build/chat-service/pom.xml
-COPY chatbot-service/pom.xml /build/chatbot-service/pom.xml
 COPY content-service/pom.xml /build/content-service/pom.xml
 COPY media-service/pom.xml /build/media-service/pom.xml
 COPY notification-service/pom.xml /build/notification-service/pom.xml

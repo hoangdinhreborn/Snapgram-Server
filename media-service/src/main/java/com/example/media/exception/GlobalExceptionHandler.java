@@ -3,7 +3,7 @@ package com.example.media.exception;
 import com.example.media.ai.AiServiceUnavailableException;
 import com.example.media.ai.AiTimeoutException;
 import com.example.media.ai.RateLimitExceededException;
-import com.example.media.dto.ErrorResponse;
+import com.example.media.dto.common.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
