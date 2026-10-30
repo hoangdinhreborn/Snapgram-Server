@@ -1,14 +1,5 @@
 services:
   # ========== Infrastructure ==========
-  ollama:
-    image: ollama/ollama:latest
-    container_name: snapgram-ollama
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-
   kafka:
     image: apache/kafka:4.3.1
     container_name: snapgram-kafka
@@ -336,8 +327,8 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_EXTERNAL_ENDPOINT: ${MINIO_EXTERNAL_ENDPOINT:-http://localhost:9000}
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000/snapgram-media}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:31b-cloud}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:31b}
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
     depends_on:
       postgres-media:
@@ -486,4 +477,3 @@ volumes:
   postgres_notification_data:
   postgres_payment_data:
   minio_data:
-  ollama_data:

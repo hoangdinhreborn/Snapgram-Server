@@ -10,9 +10,9 @@ import org.springframework.context.annotation.Configuration;
 @Getter
 @Setter
 public class OllamaProperties {
-    private String baseUrl;
-    private String model;
-    private String apiKey;
+    private String baseUrl = "https://ollama.com";
+    private String model = "gemma4:31b";
+    private String apiKey = "";
     private int timeoutSeconds = 30;
     private double temperature = 0.7;
 }

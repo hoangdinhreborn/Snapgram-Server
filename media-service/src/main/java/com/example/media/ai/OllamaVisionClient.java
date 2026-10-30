@@ -28,7 +28,7 @@ public class OllamaVisionClient {
 
     public OllamaVisionClient(OllamaProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
-        this.objectMapper = objectMapper;
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper().findAndRegisterModules();
 
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
@@ -37,9 +37,13 @@ public class OllamaVisionClient {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofSeconds(properties.getTimeoutSeconds()));
 
+        String baseUrl = (properties.getBaseUrl() != null && !properties.getBaseUrl().isBlank())
+                ? properties.getBaseUrl().trim()
+                : "https://ollama.com";
+
         this.restClient = RestClient.builder()
                 .requestFactory(requestFactory)
-                .baseUrl(properties.getBaseUrl())
+                .baseUrl(baseUrl)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
