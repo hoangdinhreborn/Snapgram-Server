@@ -2,7 +2,7 @@
 
 ## Overview
 
-Snapgram là một microservices project với 7 services (auth, chat, chatbot, content, media, notification, recommender, api-gateway) + infrastructure (Kafka, Redis, PostgreSQL, MinIO, Mailpit).
+Snapgram là một microservices project với 8 services (auth, chat, content, media, notification, payment, recommender, api-gateway) + infrastructure (Kafka, Redis, PostgreSQL, MinIO, Mailpit).
 
 Tất cả được quản lý bởi một **docker-compose.yml** duy nhất trong folder `infra/`.
 
@@ -25,9 +25,6 @@ snapgram/
 ├── chat-service/
 │   ├── Dockerfile
 │   └── src/
-├── chatbot-service/
-│   ├── Dockerfile
-│   └── src/
 ├── content-service/
 │   ├── Dockerfile
 │   └── src/
@@ -35,6 +32,9 @@ snapgram/
 │   ├── Dockerfile
 │   └── src/
 ├── notification-service/
+│   ├── Dockerfile
+│   └── src/
+├── payment-service/
 │   ├── Dockerfile
 │   └── src/
 ├── recommender-service/

@@ -1,7 +1,7 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.AdminDashboardResponse;
-import com.example.auth.dto.AdminUserResponse;
+import com.example.auth.dto.admin.AdminDashboardResponse;
+import com.example.auth.dto.admin.AdminUserResponse;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.repository.AuthUserRepository;
 import lombok.RequiredArgsConstructor;

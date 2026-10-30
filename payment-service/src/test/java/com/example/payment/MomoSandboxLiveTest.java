@@ -4,7 +4,7 @@ import com.example.payment.adapter.momo.MomoPaymentGateway;
 import com.example.payment.adapter.momo.MomoProperties;
 import com.example.payment.adapter.momo.MomoQueryClient;
 import com.example.payment.adapter.momo.MomoSigner;
-import com.example.payment.dto.PaymentCallbackResult;
+import com.example.payment.dto.payment.PaymentCallbackResult;
 import com.example.payment.port.PaymentGateway;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

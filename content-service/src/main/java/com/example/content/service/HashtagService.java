@@ -1,8 +1,8 @@
 package com.example.content.service;
 
-import com.example.content.dto.HashtagResponse;
-import com.example.content.dto.PostMediaResponse;
-import com.example.content.dto.PostResponse;
+import com.example.content.dto.hashtag.HashtagResponse;
+import com.example.content.dto.post.PostMediaResponse;
+import com.example.content.dto.post.PostResponse;
 import com.example.content.entity.Hashtag;
 import com.example.content.entity.Post;
 import com.example.content.entity.PostMedia;

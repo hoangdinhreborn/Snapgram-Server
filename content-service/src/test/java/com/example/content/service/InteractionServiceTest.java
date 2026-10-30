@@ -1,6 +1,6 @@
 package com.example.content.service;
 
-import com.example.content.dto.InteractionRequest;
+import com.example.content.dto.interaction.InteractionRequest;
 import com.example.content.entity.Interaction;
 import com.example.content.entity.Post;
 import com.example.content.entity.PostStatus;

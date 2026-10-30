@@ -1,8 +1,8 @@
 package com.example.content.controller;
 
-import com.example.content.dto.CreateStoryRequest;
-import com.example.content.dto.StoryResponse;
-import com.example.content.dto.StoryViewerResponse;
+import com.example.content.dto.story.CreateStoryRequest;
+import com.example.content.dto.story.StoryResponse;
+import com.example.content.dto.story.StoryViewerResponse;
 import com.example.content.service.StoryService;
 import com.example.content.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

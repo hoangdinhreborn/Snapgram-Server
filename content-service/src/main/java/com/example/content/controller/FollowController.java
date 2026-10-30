@@ -1,6 +1,6 @@
 package com.example.content.controller;
 
-import com.example.content.dto.FollowResponse;
+import com.example.content.dto.follow.FollowResponse;
 import com.example.content.service.FollowService;
 import com.example.content.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,7 +54,7 @@ public class FollowController {
 
     @Operation(summary = "Trạng thái follow với một user")
     @GetMapping("/status/{targetUserId}")
-    public ResponseEntity<com.example.content.dto.FollowStatusResponse> getFollowStatus(
+    public ResponseEntity<com.example.content.dto.follow.FollowStatusResponse> getFollowStatus(
             @PathVariable UUID targetUserId) {
         return ResponseEntity.ok(followService.getFollowStatus(UserContext.getCurrentUserId(), targetUserId));
     }

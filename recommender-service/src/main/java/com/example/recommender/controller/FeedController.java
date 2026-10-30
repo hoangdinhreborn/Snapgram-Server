@@ -1,8 +1,8 @@
 package com.example.recommender.controller;
 
-import com.example.recommender.dto.FeedResponse;
-import com.example.recommender.dto.SuggestedUserDto;
-import com.example.recommender.dto.TrendingTagDto;
+import com.example.recommender.dto.feed.FeedResponse;
+import com.example.recommender.dto.feed.SuggestedUserDto;
+import com.example.recommender.dto.feed.TrendingTagDto;
 import com.example.recommender.service.FeedService;
 import com.example.recommender.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

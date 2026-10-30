@@ -1,6 +1,6 @@
 package com.example.content.service;
 
-import com.example.content.dto.CreatePostRequest;
+import com.example.content.dto.post.CreatePostRequest;
 import com.example.content.entity.Post;
 import com.example.content.entity.PostStatus;
 import com.example.content.event.EventIds;

@@ -1,9 +1,9 @@
 package com.example.recommender.service;
 
-import com.example.recommender.dto.FeedResponse;
-import com.example.recommender.dto.RecommendedPostDto;
-import com.example.recommender.dto.SuggestedUserDto;
-import com.example.recommender.dto.TrendingTagDto;
+import com.example.recommender.dto.feed.FeedResponse;
+import com.example.recommender.dto.feed.RecommendedPostDto;
+import com.example.recommender.dto.feed.SuggestedUserDto;
+import com.example.recommender.dto.feed.TrendingTagDto;
 import com.example.recommender.entity.RecommenderPostView;
 import com.example.recommender.repository.*;
 import lombok.RequiredArgsConstructor;

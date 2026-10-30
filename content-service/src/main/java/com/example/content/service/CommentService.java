@@ -1,7 +1,7 @@
 package com.example.content.service;
 
-import com.example.content.dto.CommentResponse;
-import com.example.content.dto.CreateCommentRequest;
+import com.example.content.dto.comment.CommentResponse;
+import com.example.content.dto.comment.CreateCommentRequest;
 import com.example.content.entity.Comment;
 import com.example.content.entity.CommentLike;
 import com.example.content.entity.Post;

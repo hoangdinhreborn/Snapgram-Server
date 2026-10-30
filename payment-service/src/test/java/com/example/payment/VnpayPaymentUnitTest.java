@@ -4,7 +4,7 @@ import com.example.payment.adapter.vnpay.VnpayPaymentGateway;
 import com.example.payment.adapter.vnpay.VnpayProperties;
 import com.example.payment.adapter.vnpay.VnpayQueryClient;
 import com.example.payment.adapter.vnpay.VnpaySigner;
-import com.example.payment.dto.PaymentCallbackResult;
+import com.example.payment.dto.payment.PaymentCallbackResult;
 import com.example.payment.port.PaymentGateway;
 import org.junit.jupiter.api.Test;
 

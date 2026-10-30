@@ -1,6 +1,6 @@
 package com.example.auth.config;
 
-import com.example.auth.dto.ErrorResponse;
+import com.example.auth.dto.common.ErrorResponse;
 import tools.jackson.databind.ObjectMapper;
 import io.github.bucket4j.distributed.BucketProxy;
 import io.github.bucket4j.distributed.proxy.ProxyManager;

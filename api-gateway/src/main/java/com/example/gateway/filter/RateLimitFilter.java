@@ -1,6 +1,6 @@
 package com.example.gateway.filter;
 
-import com.example.gateway.dto.ErrorResponse;
+import com.example.gateway.dto.common.ErrorResponse;
 import tools.jackson.databind.ObjectMapper;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;

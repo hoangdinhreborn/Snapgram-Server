@@ -1,7 +1,7 @@
 package com.example.content.controller;
 
-import com.example.content.dto.CommentResponse;
-import com.example.content.dto.CreateCommentRequest;
+import com.example.content.dto.comment.CommentResponse;
+import com.example.content.dto.comment.CreateCommentRequest;
 import com.example.content.service.CommentService;
 import com.example.content.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

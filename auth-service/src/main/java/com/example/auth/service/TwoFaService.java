@@ -1,9 +1,9 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.TwoFaDisableRequest;
-import com.example.auth.dto.TwoFaEnableRequest;
-import com.example.auth.dto.TwoFaEnableResponse;
-import com.example.auth.dto.TwoFaSetupResponse;
+import com.example.auth.dto.auth.TwoFaDisableRequest;
+import com.example.auth.dto.auth.TwoFaEnableRequest;
+import com.example.auth.dto.auth.TwoFaEnableResponse;
+import com.example.auth.dto.auth.TwoFaSetupResponse;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.exception.TwoFaException;
 import com.example.auth.repository.AuthUserRepository;

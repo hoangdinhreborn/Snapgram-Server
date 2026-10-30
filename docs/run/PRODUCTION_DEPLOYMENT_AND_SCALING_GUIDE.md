@@ -155,10 +155,10 @@ http://your-domain.com:8080/api/...
 - API Admin: `/api/auth/admin/...`, `/api/admin/reports/...`
 
 ### Cách 3: Tắt Swagger trên Production để Tăng Bảo Mật
-Trên môi trường Production thật sự, khuyến nghị tắt hẳn Swagger UI bằng biến môi trường trong file `.env`:
+Trên môi trường Production thật sự, khuyến nghị tắt hẳn Swagger UI & API docs bằng biến môi trường trong file `.env`:
 ```properties
-# Tắt Swagger UI để tránh lộ cấu trúc API cho kẻ tấn công
-springdoc.swagger-ui.enabled=false
-springdoc.api-docs.enabled=false
+# Tắt Swagger UI & OpenAPI Docs để tránh lộ cấu trúc API cho kẻ tấn công
+SWAGGER_ENABLED=false
 ```
-Chỉ bật Swagger trên môi trường **Staging / Testing**.
+Khi `SWAGGER_ENABLED=false`, các endpoint `/swagger-ui.html` và `/v3/api-docs` sẽ bị vô hiệu hóa hoàn toàn trên toàn bộ microservices, đồng thời các bean cấu hình OpenAPI sẽ không được khởi tạo để tiết kiệm RAM.
+Chỉ bật `SWAGGER_ENABLED=true` trên môi trường **Local Dev / Staging / Testing**.

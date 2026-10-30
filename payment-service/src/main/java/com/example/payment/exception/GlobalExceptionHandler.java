@@ -1,6 +1,6 @@
 package com.example.payment.exception;
 
-import com.example.payment.dto.ErrorResponse;
+import com.example.payment.dto.common.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

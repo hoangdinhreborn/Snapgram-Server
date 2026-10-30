@@ -723,21 +723,7 @@ TableGroup CHAT_DB {
 }
 
 // ============================================================
-// 5. BOT DB — chatbot-service
-// ============================================================
-// PLAN only states that the original chatbot 3 tasks remain unchanged.
-// It does not define the bot DB entity schema, so no production table is invented here.
-Table bot_schema_todo {
-  id uuid [pk]
-  note text [not null, note: 'Placeholder only. Replace after the original chatbot-service schema is supplied/confirmed.']
-}
-
-TableGroup BOT_DB {
-  bot_schema_todo
-}
-
-// ============================================================
-// 6. RECOMMENDER DB — recommender-service (CQRS read model)
+// 5. RECOMMENDER DB — recommender-service (CQRS read model)
 // ============================================================
 Table recommender_post_view {
   post_id uuid [pk, note: 'Logical reference → content_db.content_posts.id']
@@ -936,8 +922,7 @@ Ref: auth_users.id < notification_device_tokens.user_id
 // 4. Comment reply is self-reference with max depth = 1.
 // 5. Block lives in auth_db; mute lives in content_db; downstream filters use events/projections.
 // 6. Recommender is CQRS read-model and does not own content posts.
-// 7. bot_db remains intentionally unspecified until the original chatbot schema is confirmed.
-// 8. Before Flyway, convert only same-DB Ref lines into SQL FK constraints; keep cross-service refs as plain UUID columns.
+// 7. Before Flyway, convert only same-DB Ref lines into SQL FK constraints; keep cross-service refs as plain UUID columns.
 // 9. auth_email_verifications: token is SHA-256 hashed before storage; raw token sent via email only once; 24h TTL.
 // 10. auth_password_resets: token is SHA-256 hashed before storage; raw token sent via email only once; 15min TTL; single-use (used_at).
 // 11. auth_users: is_banned, banned_at, ban_reason support Admin ban moderation (V3 migration).

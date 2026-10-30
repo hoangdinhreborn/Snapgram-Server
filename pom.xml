@@ -33,7 +33,6 @@
         <module>auth-service</module>
         <module>content-service</module>
         <module>chat-service</module>
-        <module>chatbot-service</module>
         <module>recommender-service</module>
         <module>media-service</module>
         <module>notification-service</module>

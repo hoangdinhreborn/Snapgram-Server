@@ -1,6 +1,6 @@
 package com.example.content.controller;
 
-import com.example.content.dto.InteractionRequest;
+import com.example.content.dto.interaction.InteractionRequest;
 import com.example.content.service.InteractionService;
 import com.example.content.util.UserContext;
 import io.swagger.v3.oas.annotations.Operation;

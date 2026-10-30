@@ -1,6 +1,6 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.AdminUserResponse;
+import com.example.auth.dto.admin.AdminUserResponse;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.entity.Role;
 import com.example.auth.repository.AuthRefreshTokenRepository;

@@ -1,6 +1,6 @@
 package com.example.content.service;
 
-import com.example.content.dto.FollowResponse;
+import com.example.content.dto.follow.FollowResponse;
 import com.example.content.entity.Follow;
 import com.example.content.entity.FollowStatus;
 import com.example.content.entity.UserPrivacyView;
@@ -139,13 +139,13 @@ public class FollowService {
 
     /** Trạng thái follow của followerId với followingId — dùng cho nút Theo dõi ở Reels. */
     @Transactional(readOnly = true)
-    public com.example.content.dto.FollowStatusResponse getFollowStatus(UUID followerId, UUID followingId) {
+    public com.example.content.dto.follow.FollowStatusResponse getFollowStatus(UUID followerId, UUID followingId) {
         if (followerId.equals(followingId)) {
-            return new com.example.content.dto.FollowStatusResponse(false, "SELF");
+            return new com.example.content.dto.follow.FollowStatusResponse(false, "SELF");
         }
         return followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
-                .map(f -> new com.example.content.dto.FollowStatusResponse(true, f.getStatus().name()))
-                .orElseGet(() -> new com.example.content.dto.FollowStatusResponse(false, null));
+                .map(f -> new com.example.content.dto.follow.FollowStatusResponse(true, f.getStatus().name()))
+                .orElseGet(() -> new com.example.content.dto.follow.FollowStatusResponse(false, null));
     }
 
     private void publishFollowEvent(Follow follow) {

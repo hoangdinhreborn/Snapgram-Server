@@ -1,8 +1,8 @@
 package com.example.auth.client;
 
 import com.example.auth.config.FacebookOAuthProperties;
-import com.example.auth.dto.FacebookTokenResponse;
-import com.example.auth.dto.FacebookUserProfile;
+import com.example.auth.dto.auth.FacebookTokenResponse;
+import com.example.auth.dto.auth.FacebookUserProfile;
 import com.example.auth.exception.OAuthAuthenticationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

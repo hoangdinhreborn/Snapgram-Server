@@ -1,6 +1,6 @@
 package com.example.gateway.filter;
 
-import com.example.gateway.dto.ErrorResponse;
+import com.example.gateway.dto.common.ErrorResponse;
 import com.example.gateway.util.JwtPayloadUtil;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;

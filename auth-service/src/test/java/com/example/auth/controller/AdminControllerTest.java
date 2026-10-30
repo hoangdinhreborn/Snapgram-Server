@@ -1,6 +1,6 @@
 package com.example.auth.controller;
 
-import com.example.auth.dto.AdminUserResponse;
+import com.example.auth.dto.admin.AdminUserResponse;
 import com.example.auth.service.AdminService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -2,9 +2,9 @@ package com.example.payment.controller;
 
 import com.example.payment.adapter.momo.MomoPaymentGateway;
 import com.example.payment.adapter.vnpay.VnpayPaymentGateway;
-import com.example.payment.dto.CreatePaymentRequest;
-import com.example.payment.dto.CreatePaymentResponse;
-import com.example.payment.dto.PaymentOrderResponse;
+import com.example.payment.dto.payment.CreatePaymentRequest;
+import com.example.payment.dto.payment.CreatePaymentResponse;
+import com.example.payment.dto.payment.PaymentOrderResponse;
 import com.example.payment.service.PaymentService;
 import com.example.payment.util.UserContext;
 import jakarta.servlet.http.HttpServletRequest;

@@ -1,9 +1,9 @@
 package com.example.content.service;
 
 import com.example.content.client.AuthServiceClient;
-import com.example.content.dto.CreateSupportTicketRequest;
-import com.example.content.dto.ReplySupportTicketRequest;
-import com.example.content.dto.SupportTicketResponse;
+import com.example.content.dto.ticket.CreateSupportTicketRequest;
+import com.example.content.dto.ticket.ReplySupportTicketRequest;
+import com.example.content.dto.ticket.SupportTicketResponse;
 import com.example.content.entity.SupportTicket;
 import com.example.content.entity.SupportTicketCategory;
 import com.example.content.entity.SupportTicketPriority;

@@ -1,7 +1,7 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.ForgotPasswordRequest;
-import com.example.auth.dto.ResetPasswordRequest;
+import com.example.auth.dto.auth.ForgotPasswordRequest;
+import com.example.auth.dto.auth.ResetPasswordRequest;
 import com.example.auth.entity.AuthPasswordReset;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.exception.InvalidCredentialsException;

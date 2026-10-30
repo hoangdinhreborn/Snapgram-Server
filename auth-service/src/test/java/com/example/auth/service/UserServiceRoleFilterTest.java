@@ -1,7 +1,7 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.UserProfileResponse;
-import com.example.auth.dto.UserSummaryDto;
+import com.example.auth.dto.user.UserProfileResponse;
+import com.example.auth.dto.user.UserSummaryDto;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.entity.Role;
 import com.example.auth.exception.UserNotFoundException;

@@ -1,7 +1,7 @@
 package com.example.payment.controller;
 
 import com.example.payment.adapter.vnpay.VnpayPaymentGateway;
-import com.example.payment.dto.PaymentCallbackResult;
+import com.example.payment.dto.payment.PaymentCallbackResult;
 import com.example.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

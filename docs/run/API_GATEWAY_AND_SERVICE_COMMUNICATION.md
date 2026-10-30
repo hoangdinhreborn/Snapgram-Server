@@ -29,10 +29,10 @@ Khi services chạy trong Docker Compose, chúng ở trên cùng một **bridge 
 ```
 - auth-service
 - chat-service
-- chatbot-service
 - content-service
 - media-service
 - notification-service
+- payment-service
 - recommender-service
 - api-gateway
 ```

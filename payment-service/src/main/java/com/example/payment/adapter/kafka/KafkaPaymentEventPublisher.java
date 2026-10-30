@@ -1,6 +1,6 @@
 package com.example.payment.adapter.kafka;
 
-import com.example.payment.dto.PaymentCompletedEvent;
+import com.example.payment.event.PaymentCompletedEvent;
 import com.example.payment.entity.PaymentOrder;
 import com.example.payment.port.PaymentEventPublisher;
 import lombok.RequiredArgsConstructor;

@@ -1,8 +1,8 @@
 package com.example.auth.service;
 
-import com.example.auth.dto.AdminUserResponse;
-import com.example.auth.dto.CreateAdminUserRequest;
-import com.example.auth.dto.UpdateAdminUserRequest;
+import com.example.auth.dto.admin.AdminUserResponse;
+import com.example.auth.dto.admin.CreateAdminUserRequest;
+import com.example.auth.dto.admin.UpdateAdminUserRequest;
 import com.example.auth.entity.AuthRefreshToken;
 import com.example.auth.entity.AuthUser;
 import com.example.auth.exception.DuplicateUserException;

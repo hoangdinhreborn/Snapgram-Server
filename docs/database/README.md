@@ -25,7 +25,6 @@ Current baseline is `V1`:
 - `media-service`: media files + metadata
 - `content-service`: posts, comments/replies, likes, interactions, follows, saves/collections, moderation, stories/highlights, hashtags, close friends, mentions
 - `chat-service`: conversations/members/messages, message actions, reactions, read state, hidden messages, pins, calls
-- `chatbot-service`: placeholder only; schema not specified by the source plan
 - `recommender-service`: CQRS post/interaction/follow/block/mute read models
 - `notification-service`: notifications + device tokens
 

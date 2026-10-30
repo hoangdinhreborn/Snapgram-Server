@@ -1,6 +1,6 @@
 package com.example.notification.controller;
 
-import com.example.notification.dto.DeviceTokenRequest;
+import com.example.notification.dto.token.DeviceTokenRequest;
 import com.example.notification.entity.DeviceToken;
 import com.example.notification.entity.Notification;
 import com.example.notification.repository.NotificationRepository;

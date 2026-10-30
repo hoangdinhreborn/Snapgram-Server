@@ -1,6 +1,6 @@
 package com.example.content.service;
 
-import com.example.content.dto.InteractionRequest;
+import com.example.content.dto.interaction.InteractionRequest;
 import com.example.content.entity.*;
 import com.example.content.event.ContentInteractionEvent;
 import com.example.content.exception.ContentNotFoundException;

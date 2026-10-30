@@ -1,6 +1,6 @@
 package com.example.payment.controller;
 
-import com.example.payment.dto.PaymentOrderResponse;
+import com.example.payment.dto.payment.PaymentOrderResponse;
 import com.example.payment.service.PaymentService;
 import com.example.payment.util.UserContext;
 import lombok.RequiredArgsConstructor;
