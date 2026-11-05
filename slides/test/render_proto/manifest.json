@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "backend": "native",
+  "rasterEngine": "libreoffice",
+  "source": "saved",
+  "inputPath": "D:\\Source\\Snapgram\\Snapgram_server\\slides\\test\\prototype.pptx",
+  "sourceSha256": "7417b4dcb9f2b906ff5c10878f25fc79d1993666dfa1bc206a43a030d0804452",
+  "dpi": 144,
+  "pageCount": 3,
+  "images": [
+    {
+      "index": 1,
+      "page": 1,
+      "path": "D:\\Source\\Snapgram\\Snapgram_server\\slides\\test\\render_proto\\page-0001.png",
+      "width": 1920,
+      "height": 1081,
+      "rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 1280,
+        "height": 720.0666666666667
+      },
+      "byteLength": 112314
+    },
+    {
+      "index": 2,
+      "page": 2,
+      "path": "D:\\Source\\Snapgram\\Snapgram_server\\slides\\test\\render_proto\\page-0002.png",
+      "width": 1920,
+      "height": 1081,
+      "rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 1280,
+        "height": 720.0666666666667
+      },
+      "byteLength": 155536
+    },
+    {
+      "index": 3,
+      "page": 3,
+      "path": "D:\\Source\\Snapgram\\Snapgram_server\\slides\\test\\render_proto\\page-0003.png",
+      "width": 1920,
+      "height": 1081,
+      "rectangle": {
+        "x": 0,
+        "y": 0,
+        "width": 1280,
+        "height": 720.0666666666667
+      },
+      "byteLength": 121862
+    }
+  ],
+  "missingFonts": []
+}
