@@ -41,7 +41,7 @@ RUN chown appuser:appgroup app.jar
 
 USER appuser
 
-EXPOSE 8087
+EXPOSE 8090
 
 # JVM tuning cho container:
 #   -XX:+UseContainerSupport        → đọc CPU/RAM limit từ cgroup (không dùng host)

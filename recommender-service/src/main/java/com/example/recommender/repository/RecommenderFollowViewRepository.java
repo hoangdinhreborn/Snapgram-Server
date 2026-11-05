@@ -21,6 +21,14 @@ public interface RecommenderFollowViewRepository extends JpaRepository<Recommend
      * để gợi ý tài khoản mới, loại trừ những người tôi đã follow hoặc chính tôi.
      */
     @Query("""
+            SELECT DISTINCT f.id.followerId
+            FROM RecommenderFollowView f
+            WHERE f.status = 'ACCEPTED'
+            ORDER BY f.id.followerId ASC
+            """)
+    org.springframework.data.domain.Page<UUID> findDistinctFollowerIds(org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
             SELECT f2.id.followingId, COUNT(f2.id.followerId) as mutualCount
             FROM RecommenderFollowView f1
             JOIN RecommenderFollowView f2 ON f1.id.followingId = f2.id.followerId

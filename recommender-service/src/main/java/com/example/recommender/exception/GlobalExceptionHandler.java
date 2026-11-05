@@ -24,6 +24,42 @@ public class GlobalExceptionHandler {
                 .build());
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException e) {
+        log.warn("Access denied: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.builder()
+                .status(HttpStatus.FORBIDDEN.value())
+                .code("FORBIDDEN")
+                .error("Forbidden")
+                .message(e.getMessage())
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException e) {
+        log.warn("Not found: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.builder()
+                .status(HttpStatus.NOT_FOUND.value())
+                .code("NOT_FOUND")
+                .error("Not Found")
+                .message(e.getMessage())
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    @ExceptionHandler(JobConflictException.class)
+    public ResponseEntity<ErrorResponse> handleJobConflict(JobConflictException e) {
+        log.warn("Job conflict: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.builder()
+                .status(HttpStatus.CONFLICT.value())
+                .code("JOB_CONFLICT")
+                .error("Conflict")
+                .message(e.getMessage())
+                .timestamp(Instant.now())
+                .build());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("Bad request: {}", e.getMessage());
