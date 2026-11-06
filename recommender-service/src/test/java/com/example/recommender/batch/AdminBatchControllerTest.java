@@ -143,7 +143,7 @@ class AdminBatchControllerTest {
     }
 
     @Test
-    @DisplayName("Restart Job: chỉ cho phép restart khi status là FAILED")
+    @DisplayName("Restart Job: restart execution hợp lệ trả execution mới")
     void testRestartJob_Success() throws Exception {
         JobInstance jobInstance = new JobInstance(1L, "trendingPostsJob");
         JobExecution failedExecution = new JobExecution(55L, jobInstance, new JobParameters());
@@ -155,6 +155,7 @@ class AdminBatchControllerTest {
         newExecution.setExitStatus(ExitStatus.UNKNOWN);
 
         when(jobExplorer.getJobExecution(55L)).thenReturn(failedExecution);
+        when(jobExplorer.getJobExecutions(jobInstance)).thenReturn(List.of(failedExecution));
         when(jobOperator.restart(55L)).thenReturn(56L);
         when(jobExplorer.getJobExecution(56L)).thenReturn(newExecution);
 
@@ -162,6 +163,60 @@ class AdminBatchControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(56L, response.getBody().getJobExecutionId());
+    }
+
+    @Test
+    @DisplayName("Restart Job lần hai trên cùng execution đã hoàn thành: ném JobConflictException (HTTP 409)")
+    void testRestartJob_SecondRestart_ThrowsConflict() {
+        JobInstance jobInstance = new JobInstance(1L, "trendingPostsJob");
+        JobExecution failedExecution = new JobExecution(55L, jobInstance, new JobParameters());
+        failedExecution.setStatus(BatchStatus.FAILED);
+
+        JobExecution completedExecution = new JobExecution(56L, jobInstance, new JobParameters());
+        completedExecution.setStatus(BatchStatus.COMPLETED);
+
+        when(jobExplorer.getJobExecution(55L)).thenReturn(failedExecution);
+        when(jobExplorer.getJobExecutions(jobInstance)).thenReturn(List.of(failedExecution, completedExecution));
+
+        JobConflictException ex = assertThrows(JobConflictException.class, () -> controller.restartJob(55L));
+        assertTrue(ex.getMessage().contains("đã hoàn thành thành công tại JobExecution #56"));
+    }
+
+    @Test
+    @DisplayName("Restart Job khi instance đang có execution chạy: ném JobConflictException (HTTP 409)")
+    void testRestartJob_InstanceRunning_ThrowsConflict() {
+        JobInstance jobInstance = new JobInstance(1L, "trendingPostsJob");
+        JobExecution failedExecution = new JobExecution(55L, jobInstance, new JobParameters());
+        failedExecution.setStatus(BatchStatus.FAILED);
+
+        JobExecution runningExecution = new JobExecution(56L, jobInstance, new JobParameters());
+        runningExecution.setStatus(BatchStatus.STARTED);
+
+        when(jobExplorer.getJobExecution(55L)).thenReturn(failedExecution);
+        when(jobExplorer.getJobExecutions(jobInstance)).thenReturn(List.of(failedExecution, runningExecution));
+
+        JobConflictException ex = assertThrows(JobConflictException.class, () -> controller.restartJob(55L));
+        assertTrue(ex.getMessage().contains("hiện đang có JobExecution #56 đang chạy"));
+    }
+
+    @Test
+    @DisplayName("Restart Job với ID không tồn tại: ném ResourceNotFoundException (HTTP 404)")
+    void testRestartJob_NotFound_ThrowsNotFound() {
+        when(jobExplorer.getJobExecution(999L)).thenReturn(null);
+        assertThrows(com.example.recommender.exception.ResourceNotFoundException.class,
+                () -> controller.restartJob(999L));
+    }
+
+    @Test
+    @DisplayName("Restart Job khi execution không ở trạng thái FAILED: ném IllegalArgumentException (HTTP 400)")
+    void testRestartJob_NotFailed_ThrowsBadRequest() {
+        JobInstance jobInstance = new JobInstance(1L, "trendingPostsJob");
+        JobExecution completedExecution = new JobExecution(55L, jobInstance, new JobParameters());
+        completedExecution.setStatus(BatchStatus.COMPLETED);
+
+        when(jobExplorer.getJobExecution(55L)).thenReturn(completedExecution);
+
+        assertThrows(IllegalArgumentException.class, () -> controller.restartJob(55L));
     }
 
     @Test
