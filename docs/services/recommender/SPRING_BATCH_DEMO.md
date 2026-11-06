@@ -242,17 +242,38 @@ curl -s -X GET "$BASE_URL/api/admin/batch/executions/$FAIL_EXEC_ID" "${ADMIN_HEA
 ```
 *Phân tích:* Đã commit thành công 2 chunk = 40 items. Lỗi xảy ra ở chunk 3 (item 45), chunk 3 được rollback an toàn (`commitCount = 2`).
 
-**3. Khởi động lại (Restart) Execution bị FAILED:**
+**3. Khởi động lại (Restart) Execution bị FAILED (Restart ĐÚNG 1 LẦN):**
 ```bash
 RESTART_RESP=$(curl -s -X POST "$BASE_URL/api/admin/batch/executions/$FAIL_EXEC_ID/restart" "${ADMIN_HEADERS[@]}")
 RESTART_EXEC_ID=$(echo "$RESTART_RESP" | jq -r .jobExecutionId)
+
+# Kiểm tra id trả về hợp lệ (khác rỗng và khác null) trước khi poll
+if [ -z "$RESTART_EXEC_ID" ] || [ "$RESTART_EXEC_ID" = "null" ]; then
+  echo "❌ Lỗi: Lệnh restart không trả về jobExecutionId hợp lệ:"
+  echo "$RESTART_RESP" | jq .
+  exit 1
+fi
+
 echo "Job đã được Restart thành công với Execution ID mới: $RESTART_EXEC_ID (khác với ID cũ $FAIL_EXEC_ID)"
 ```
 
-**4. Xem số liệu thực tế LẦN RESTART (Execution ID = 4):**
+**4. Chờ Lần Restart Hoàn Tất và Xem Số Liệu Thực Tế:**
 ```bash
+while true; do
+  STATUS=$(curl -s -X GET "$BASE_URL/api/admin/batch/executions/$RESTART_EXEC_ID" "${ADMIN_HEADERS[@]}" | jq -r .status)
+  echo "Trạng thái: $STATUS"
+  [ "$STATUS" = "COMPLETED" ] || [ "$STATUS" = "FAILED" ] && break
+  sleep 1
+done
+
 curl -s -X GET "$BASE_URL/api/admin/batch/executions/$RESTART_EXEC_ID" "${ADMIN_HEADERS[@]}" | jq .
 ```
+
+> ⚠️ **QUY TẮC BẢO VỆ CHỐNG RESTART LẦN 2:**  
+> - Mỗi execution FAILED chỉ được phép restart **đúng 1 lần**. Khi lần restart đó đã hoàn tất (`COMPLETED`), `JobInstance` tương ứng đã kết thúc chu trình vòng đời.
+> - Nếu client gửi lại request restart lần thứ 2 vào cùng execution FAILED cũ, hệ thống sẽ trả về **HTTP 409 Conflict** (`JobConflictException`):  
+>   `"JobInstance #X (thuộc JobExecution #Y) đã hoàn thành thành công tại JobExecution #Z. Không thể restart lại."`
+> - Để biểu diễn restart thêm lần nữa, luôn tạo một lần chạy lỗi mới (`POST /run?failAtItem=45`) để có một execution FAILED mới.
 *Kết quả thực tế sau Restart (`jobExecutionId = 4`):*
 ```json
 {
