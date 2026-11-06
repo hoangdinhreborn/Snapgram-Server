@@ -94,16 +94,22 @@ public class TurnstileVerificationService {
             throw new InvalidTurnstileException("Security check failed. Please refresh and try again.");
         }
 
-        if (expectedAction != null && !expectedAction.equals(response.getAction())) {
-            log.warn("turnstile_rejected reason=action_mismatch expected={} actual={}",
-                    expectedAction, response.getAction());
-            throw new InvalidTurnstileException("Security check failed: action mismatch.");
-        }
+        boolean isTestingKey = response.getMetadata() != null && response.getMetadata().isResultWithTestingKey();
 
-        if (response.getHostname() == null || !expectedHostnames.contains(response.getHostname())) {
-            log.warn("turnstile_rejected reason=hostname_disallowed hostname={} allowed={}",
-                    response.getHostname(), expectedHostnames);
-            throw new InvalidTurnstileException("Security check failed: origin hostname not allowed.");
+        if (!isTestingKey) {
+            if (expectedAction != null && !expectedAction.equals(response.getAction())) {
+                log.warn("turnstile_rejected reason=action_mismatch expected={} actual={}",
+                        expectedAction, response.getAction());
+                throw new InvalidTurnstileException("Security check failed: action mismatch.");
+            }
+
+            if (response.getHostname() == null || !expectedHostnames.contains(response.getHostname())) {
+                log.warn("turnstile_rejected reason=hostname_disallowed hostname={} allowed={}",
+                        response.getHostname(), expectedHostnames);
+                throw new InvalidTurnstileException("Security check failed: origin hostname not allowed.");
+            }
+        } else {
+            log.debug("turnstile_test_key_accepted hostname={}", response.getHostname());
         }
 
         log.debug("turnstile_verified action={} hostname={}", response.getAction(), response.getHostname());

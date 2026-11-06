@@ -29,4 +29,16 @@ public class TurnstileVerifyResponse {
     private String action;
 
     private String cdata;
+
+    private Metadata metadata;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Metadata {
+        @JsonProperty("result_with_testing_key")
+        private boolean resultWithTestingKey;
+    }
 }
