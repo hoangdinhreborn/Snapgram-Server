@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @RestController
@@ -117,10 +118,7 @@ public class AdminBatchController {
     @GetMapping("/executions/{id}")
     public ResponseEntity<JobExecutionResponse> getExecution(@PathVariable Long id) {
         UserContext.requireAdmin();
-        JobExecution execution = jobExplorer.getJobExecution(id);
-        if (execution == null) {
-            throw new ResourceNotFoundException("Không tìm thấy JobExecution với ID: " + id);
-        }
+        JobExecution execution = findJobExecutionOrThrow(id);
         return ResponseEntity.ok(mapToResponse(execution));
     }
 
@@ -166,14 +164,36 @@ public class AdminBatchController {
     public ResponseEntity<JobExecutionResponse> restartJob(@PathVariable Long id) throws Exception {
         UserContext.requireAdmin();
 
-        JobExecution execution = jobExplorer.getJobExecution(id);
-        if (execution == null) {
-            throw new ResourceNotFoundException("Không tìm thấy JobExecution với ID: " + id);
-        }
+        JobExecution execution = findJobExecutionOrThrow(id);
 
         if (execution.getStatus() != BatchStatus.FAILED) {
             throw new IllegalArgumentException("Chỉ có thể restart một JobExecution ở trạng thái FAILED. Trạng thái hiện tại: "
                     + execution.getStatus());
+        }
+
+        JobInstance instance = execution.getJobInstance();
+        if (instance != null) {
+            List<JobExecution> instanceExecutions = jobExplorer.getJobExecutions(instance);
+
+            // 1. Kiểm tra xem JobInstance đã có execution COMPLETED nào chưa
+            Optional<JobExecution> completedExec = instanceExecutions.stream()
+                    .filter(e -> e.getStatus() == BatchStatus.COMPLETED)
+                    .findFirst();
+            if (completedExec.isPresent()) {
+                throw new JobConflictException("JobInstance #" + instance.getInstanceId()
+                        + " (thuộc JobExecution #" + id + ") đã hoàn thành thành công tại JobExecution #"
+                        + completedExec.get().getId() + ". Không thể restart lại.");
+            }
+
+            // 2. Kiểm tra xem JobInstance có execution nào đang chạy (STARTING/STARTED) không
+            Optional<JobExecution> runningExec = instanceExecutions.stream()
+                    .filter(e -> e.getStatus() == BatchStatus.STARTING || e.getStatus() == BatchStatus.STARTED)
+                    .findFirst();
+            if (runningExec.isPresent()) {
+                throw new JobConflictException("JobInstance #" + instance.getInstanceId()
+                        + " hiện đang có JobExecution #" + runningExec.get().getId()
+                        + " đang chạy (trạng thái: " + runningExec.get().getStatus() + "). Vui lòng đợi hoàn tất trước khi restart.");
+            }
         }
 
         // Đảm bảo cờ lỗi giả lập không còn vũ trang -> restart sẽ chạy tiếp mượt mà từ vị trí dừng!
@@ -182,8 +202,21 @@ public class AdminBatchController {
         log.info("🔄 [ADMIN RESTART] Đang khởi động lại JobExecution ID: {}", id);
         Long newExecutionId = jobOperator.restart(id);
 
-        JobExecution newExecution = jobExplorer.getJobExecution(newExecutionId);
+        JobExecution newExecution = findJobExecutionOrThrow(newExecutionId);
         return ResponseEntity.ok(mapToResponse(newExecution));
+    }
+
+    private JobExecution findJobExecutionOrThrow(Long id) {
+        JobExecution execution;
+        try {
+            execution = jobExplorer.getJobExecution(id);
+        } catch (org.springframework.dao.EmptyResultDataAccessException e) {
+            execution = null;
+        }
+        if (execution == null) {
+            throw new ResourceNotFoundException("Không tìm thấy JobExecution với ID: " + id);
+        }
+        return execution;
     }
 
     private JobExecutionResponse mapToResponse(JobExecution execution) {
