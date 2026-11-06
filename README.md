@@ -29,7 +29,9 @@ Dự án **Snapgram** là một hệ thống mạng xã hội được xây dự
 | `media-service`       | Upload & quản lý ảnh/video             | `8085`     | `media-service:8085`        |
 | `notification-service`| Gửi thông báo (email, push)            | `8086`     | `notification-service:8086` |
 | `payment-service`     | Cổng thanh toán MoMo, VNPay           | `8087`     | `payment-service:8087`      |
-| `recommender-service` | Gợi ý nội dung / người dùng           | `8090`     | `recommender-service:8090`  |
+| `recommender-service` | Gợi ý nội dung / người dùng (Batch)   | *Nội bộ*   | `recommender-service:8090`  |
+
+> 🔒 **Lưu ý bảo mật:** `recommender-service` không mở port ra host ngoài, mọi truy cập đều phải đi qua `api-gateway` (cổng `8080`) để đảm bảo xác thực tập trung.
 
 ---
 
@@ -232,6 +234,7 @@ public class AdminReportController {
 | `auth-service` | `/api/admin/users/**` | Khóa/mở khóa tài khoản (ban/unban), gán role Admin/Mod, quản lý user |
 | `content-service` | `/api/admin/reports/**`, `/api/admin/content/**` | Xem danh sách report, duyệt/bác bỏ report, xóa/ẩn bài viết vi phạm |
 | `media-service` | `/api/admin/media/**` | Xóa media vi phạm bản quyền/chính sách, thống kê dung lượng lưu trữ |
+| `recommender-service` | `/api/admin/batch/**` | Kích hoạt thủ công, giám sát và restart các Spring Batch jobs |
 
 ### 2.5 Lưu ý quan trọng
 
@@ -415,6 +418,7 @@ com.example.<service>/
 | Tài liệu                                                        | Nội dung                                |
 |-----------------------------------------------------------------|-----------------------------------------|
 | `docs/DEVELOPER_GUIDE.md`                                       | **Hướng dẫn đọc code & luồng kiến trúc (Developer Guide)** |
+| `docs/services/recommender/SPRING_BATCH.md`                     | **Kiến trúc & Vận hành Spring Batch 6 (Recommender Service)** |
 | `docs/run/API_GATEWAY_AND_SERVICE_COMMUNICATION.md`            | Chi tiết giao tiếp inter-service        |
 | `docs/run/DOCKER_SETUP.md`                                     | Hướng dẫn Docker đầy đủ                |
 | `docs/database/README.md`                                      | Hướng dẫn Flyway migration              |
