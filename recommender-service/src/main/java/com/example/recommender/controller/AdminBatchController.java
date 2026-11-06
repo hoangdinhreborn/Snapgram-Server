@@ -1,10 +1,7 @@
 package com.example.recommender.controller;
 
-import com.example.recommender.batch.config.DemoFailureSwitch;
-import com.example.recommender.batch.service.DemoDataSeederService;
 import com.example.recommender.dto.batch.JobExecutionResponse;
 import com.example.recommender.dto.batch.JobHistoryResponse;
-import com.example.recommender.dto.batch.SeedDataResponse;
 import com.example.recommender.dto.batch.StepExecutionDto;
 import com.example.recommender.exception.JobConflictException;
 import com.example.recommender.exception.ResourceNotFoundException;
@@ -35,45 +32,31 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/admin/batch")
 @Slf4j
-@Tag(name = "Admin Batch API", description = "Các API điều khiển, giám sát và demo Spring Batch (Admin Only)")
+@Tag(name = "Admin Batch API", description = "Các API điều khiển và giám sát Spring Batch (Admin Only)")
 public class AdminBatchController {
 
     private final JobExplorer jobExplorer;
     private final JobOperator jobOperator;
     private final ApplicationContext applicationContext;
-    private final DemoDataSeederService demoDataSeederService;
     private final JobLauncher asyncJobLauncher;
-    private final DemoFailureSwitch demoFailureSwitch;
 
     @Autowired
     public AdminBatchController(
             JobExplorer jobExplorer,
             JobOperator jobOperator,
             ApplicationContext applicationContext,
-            DemoDataSeederService demoDataSeederService,
-            @Qualifier("asyncJobLauncher") JobLauncher asyncJobLauncher,
-            DemoFailureSwitch demoFailureSwitch
+            @Qualifier("asyncJobLauncher") JobLauncher asyncJobLauncher
     ) {
         this.jobExplorer = jobExplorer;
         this.jobOperator = jobOperator;
         this.applicationContext = applicationContext;
-        this.demoDataSeederService = demoDataSeederService;
         this.asyncJobLauncher = asyncJobLauncher;
-        this.demoFailureSwitch = demoFailureSwitch;
-    }
-
-    @Operation(summary = "Seed dữ liệu giả lập phục vụ demo Spring Batch (5.000 - 20.000 bản ghi)")
-    @PostMapping("/demo/seed")
-    public ResponseEntity<SeedDataResponse> seedDemoData(@RequestParam(defaultValue = "5000") int count) {
-        UserContext.requireAdmin();
-        return ResponseEntity.ok(demoDataSeederService.seedDemoData(count));
     }
 
     @Operation(summary = "Kích hoạt thủ công một Spring Batch Job")
     @PostMapping("/jobs/{jobName}/run")
     public ResponseEntity<JobExecutionResponse> runJob(
-            @PathVariable String jobName,
-            @RequestParam(required = false) Integer failAtItem) throws Exception {
+            @PathVariable String jobName) throws Exception {
         UserContext.requireAdmin();
 
         // 1. Kiểm tra Job Bean có tồn tại trong context không
@@ -94,21 +77,13 @@ public class AdminBatchController {
                     + running.iterator().next().getId() + "). Vui lòng đợi hoàn tất trước khi chạy tiếp.");
         }
 
-        // 3. Khởi tạo JobParameters & vũ trang DemoFailureSwitch nếu có failAtItem
-        JobParametersBuilder builder = new JobParametersBuilder()
+        // 3. Khởi tạo JobParameters
+        JobParameters params = new JobParametersBuilder()
                 .addLong("timestamp", System.currentTimeMillis())
-                .addString("triggerSource", "ADMIN_API");
+                .addString("triggerSource", "ADMIN_API")
+                .toJobParameters();
 
-        if (failAtItem != null && failAtItem > 0) {
-            builder.addLong("failAtItem", failAtItem.longValue());
-            demoFailureSwitch.arm(); // Bật cờ lỗi giả lập đúng 1 lần
-            log.info("🎯 [DEMO RESTART] Đã vũ trang DemoFailureSwitch tại item #{}", failAtItem);
-        } else {
-            demoFailureSwitch.disarm();
-        }
-
-        JobParameters params = builder.toJobParameters();
-        log.info("▶ [ADMIN MANUAL RUN] Khởi chạy job {} với params: {}", jobName, params);
+        log.info("admin_manual_run job={} params={}", jobName, params);
 
         JobExecution execution = asyncJobLauncher.run(job, params);
         return ResponseEntity.ok(mapToResponse(execution));
@@ -196,10 +171,7 @@ public class AdminBatchController {
             }
         }
 
-        // Đảm bảo cờ lỗi giả lập không còn vũ trang -> restart sẽ chạy tiếp mượt mà từ vị trí dừng!
-        demoFailureSwitch.disarm();
-
-        log.info("🔄 [ADMIN RESTART] Đang khởi động lại JobExecution ID: {}", id);
+        log.info("admin_restart executionId={}", id);
         Long newExecutionId = jobOperator.restart(id);
 
         JobExecution newExecution = findJobExecutionOrThrow(newExecutionId);

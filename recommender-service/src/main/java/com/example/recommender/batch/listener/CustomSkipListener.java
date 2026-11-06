@@ -10,18 +10,18 @@ public class CustomSkipListener implements SkipListener<Object, Object> {
 
     @Override
     public void onSkipInRead(Throwable t) {
-        log.warn("⚠️ [SKIP-ON-READ] Bỏ qua bản ghi khi đọc do lỗi: {}", t.getMessage());
+        log.warn("[SKIP-ON-READ] Bỏ qua bản ghi khi đọc do lỗi: {}", t.getMessage());
     }
 
     @Override
     public void onSkipInProcess(Object item, Throwable t) {
-        log.warn("⚠️ [SKIP-ON-PROCESS] Bỏ qua item [{}] do lỗi nghiệp vụ ({}): {}",
+        log.warn("[SKIP-ON-PROCESS] Bỏ qua item [{}] do lỗi nghiệp vụ ({}): {}",
                 item, t.getClass().getSimpleName(), t.getMessage());
     }
 
     @Override
     public void onSkipInWrite(Object item, Throwable t) {
-        log.warn("⚠️ [SKIP-ON-WRITE] Bỏ qua item [{}] khi ghi DB do lỗi: {}",
+        log.warn("[SKIP-ON-WRITE] Bỏ qua item [{}] khi ghi DB do lỗi: {}",
                 item, t.getMessage());
     }
 }

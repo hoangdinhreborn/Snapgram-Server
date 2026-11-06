@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,9 +26,6 @@ class TrendingPostProcessorTest {
 
     @Mock
     private RecommenderInteractionViewRepository interactionViewRepository;
-
-    @Mock
-    private com.example.recommender.batch.config.DemoFailureSwitch demoFailureSwitch;
 
     @Spy
     private RecommendationScoringEngine scoringEngine;
@@ -70,17 +66,17 @@ class TrendingPostProcessorTest {
     }
 
     @Test
-    @DisplayName("Bản ghi chứa cờ 'DEMO_MALFORMED': ném MalformedPostException để SkipListener bỏ qua")
-    void testProcessMalformedPost_ShouldThrowMalformedPostException() {
-        RecommenderPostView malformedPost = RecommenderPostView.builder()
-                .postId(UUID.randomUUID())
-                .authorId(UUID.randomUUID())
-                .contentType("IMAGE")
-                .caption("DEMO_MALFORMED - Dữ liệu rác cố ý tạo để kiểm tra Spring Batch Skip")
-                .visibility("PUBLIC")
-                .build();
+    @DisplayName("Bản ghi có avgWatchTime null: xử lý null-safe không gây lỗi")
+    void testProcessValidPost_NullAvgWatchTime_ShouldHandleGracefully() throws Exception {
+        when(interactionViewRepository.countLikesByPostId(validPost.getPostId())).thenReturn(50L);
+        when(interactionViewRepository.findAvgWatchTimeRatioByPostId(validPost.getPostId())).thenReturn(null);
 
-        assertThrows(MalformedPostException.class, () -> processor.process(malformedPost));
+        RecommenderTrendingPost result = processor.process(validPost);
+
+        assertNotNull(result);
+        assertEquals(validPost.getPostId(), result.getPostId());
+        assertEquals(50L, result.getLikesCount());
+        assertTrue(result.getScore() > 0.0);
     }
 
     @Test
@@ -89,6 +85,8 @@ class TrendingPostProcessorTest {
         RecommenderPostView nullIdPost = RecommenderPostView.builder()
                 .postId(null)
                 .authorId(UUID.randomUUID())
+                .contentType("IMAGE")
+                .createdAt(Instant.now())
                 .visibility("PUBLIC")
                 .build();
 
@@ -96,25 +94,56 @@ class TrendingPostProcessorTest {
     }
 
     @Test
-    @DisplayName("Mô phỏng sự cố Restart: ném IllegalStateException khi chạm ngưỡng failAtItem và switch armed")
-    void testProcessFailAtItem_ShouldThrowIllegalStateExceptionForRestartDemo() {
-        processor.setFailAtItem(1);
-        when(demoFailureSwitch.tryTrigger()).thenReturn(true);
+    @DisplayName("AuthorId bị null: ném MalformedPostException")
+    void testProcessNullAuthorId_ShouldThrowMalformedPostException() {
+        RecommenderPostView nullAuthorPost = RecommenderPostView.builder()
+                .postId(UUID.randomUUID())
+                .authorId(null)
+                .contentType("IMAGE")
+                .createdAt(Instant.now())
+                .visibility("PUBLIC")
+                .build();
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> processor.process(validPost));
-        assertTrue(ex.getMessage().contains("demo khả năng RESTART"));
+        assertThrows(MalformedPostException.class, () -> processor.process(nullAuthorPost));
     }
 
     @Test
-    @DisplayName("Khi Restart: demoFailureSwitch không trigger thì job chạy qua bình thường không ném lỗi")
-    void testProcessFailAtItem_WhenNotTriggered_ShouldPassNormally() throws Exception {
-        processor.setFailAtItem(1);
-        when(demoFailureSwitch.tryTrigger()).thenReturn(false);
+    @DisplayName("CreatedAt bị null: ném MalformedPostException")
+    void testProcessNullCreatedAt_ShouldThrowMalformedPostException() {
+        RecommenderPostView nullCreatedPost = RecommenderPostView.builder()
+                .postId(UUID.randomUUID())
+                .authorId(UUID.randomUUID())
+                .contentType("IMAGE")
+                .createdAt(null)
+                .visibility("PUBLIC")
+                .build();
+
+        assertThrows(MalformedPostException.class, () -> processor.process(nullCreatedPost));
+    }
+
+    @Test
+    @DisplayName("ContentType không hợp lệ: ném MalformedPostException")
+    void testProcessInvalidContentType_ShouldThrowMalformedPostException() {
+        RecommenderPostView invalidTypePost = RecommenderPostView.builder()
+                .postId(UUID.randomUUID())
+                .authorId(UUID.randomUUID())
+                .contentType("UNSUPPORTED_TYPE_XYZ")
+                .createdAt(Instant.now())
+                .visibility("PUBLIC")
+                .build();
+
+        assertThrows(MalformedPostException.class, () -> processor.process(invalidTypePost));
+    }
+
+    @Test
+    @DisplayName("Thời gian calculatedAt khớp với timestamp trong jobParameters")
+    void testProcess_TimestampMatchesJobParameters() throws Exception {
+        long fixedTimestamp = 1730000000000L;
+        processor.setRunTimestamp(fixedTimestamp);
         when(interactionViewRepository.countLikesByPostId(validPost.getPostId())).thenReturn(10L);
 
         RecommenderTrendingPost result = processor.process(validPost);
 
-        assertNotNull(result);
-        assertEquals(validPost.getPostId(), result.getPostId());
+        assertEquals(Instant.ofEpochMilli(fixedTimestamp), result.getCalculatedAt());
     }
 }

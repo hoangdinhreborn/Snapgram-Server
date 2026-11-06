@@ -19,9 +19,9 @@ public class PrettyBatchJobListener implements JobExecutionListener {
         log.info("""
                 
                 ================================================================================
-                🚀 [SPRING BATCH START] Job: {} (ExecutionId: {})
-                ▶ Start Time: {}
-                ▶ Parameters: {}
+                [SPRING BATCH START] Job: {} (ExecutionId: {})
+                 Start Time: {}
+                 Parameters: {}
                 ================================================================================
                 """,
                 jobExecution.getJobInstance().getJobName(),
@@ -50,18 +50,18 @@ public class PrettyBatchJobListener implements JobExecutionListener {
             duration = Duration.between(jobExecution.getStartTime(), jobExecution.getEndTime());
         }
 
-        String icon = jobExecution.getStatus() == BatchStatus.COMPLETED ? "✅" : "❌";
+        String status = jobExecution.getStatus() == BatchStatus.COMPLETED ? "Success" : "Failed";
 
         log.info("""
                 
                 ================================================================================
                 {} [SPRING BATCH END] Job: {} (ExecutionId: {})
-                ▶ Status: {} | ExitCode: {}
-                ▶ Duration: {} ms ({} sec)
-                ▶ Metrics: Read={}, Written={}, Skipped={}, Commits={}
+                Status: {} | ExitCode: {}
+                Duration: {} ms ({} sec)
+                Metrics: Read={}, Written={}, Skipped={}, Commits={}
                 ================================================================================
                 """,
-                icon,
+                status,
                 jobExecution.getJobInstance().getJobName(),
                 jobExecution.getId(),
                 jobExecution.getStatus(),

@@ -21,7 +21,7 @@ public class PrettyChunkListener implements ChunkListener {
         long writeCount = stepExecution.getWriteCount();
         long skipCount = stepExecution.getSkipCount();
 
-        log.info("📦 [CHUNK COMMITTED] Step: [{}] | Chunk #{} | Read: {}, Written: {}, Skipped: {}",
+        log.info("[CHUNK COMMITTED] Step: [{}] | Chunk #{} | Read: {}, Written: {}, Skipped: {}",
                 stepExecution.getStepName(), commitCount, readCount, writeCount, skipCount);
     }
 

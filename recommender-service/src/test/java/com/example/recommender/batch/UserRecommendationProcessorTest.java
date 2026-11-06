@@ -63,9 +63,8 @@ class UserRecommendationProcessorTest {
     }
 
     @Test
-    @DisplayName("User dị thường bắt đầu bằng 00000000: ném MalformedPostException để demo Skip")
-    void testProcessMalformedUserId_ShouldThrowMalformedPostException() {
-        UUID malformedUser = UUID.fromString("00000000-0000-0000-0000-000000000001");
-        assertThrows(MalformedPostException.class, () -> processor.process(malformedUser));
+    @DisplayName("UserId bị null: ném MalformedPostException")
+    void testProcessNullUserId_ShouldThrowMalformedPostException() {
+        assertThrows(MalformedPostException.class, () -> processor.process(null));
     }
 }

@@ -415,7 +415,6 @@ com.example.<service>/
 | Tài liệu                                                        | Nội dung                                |
 |-----------------------------------------------------------------|-----------------------------------------|
 | `docs/DEVELOPER_GUIDE.md`                                       | **Hướng dẫn đọc code & luồng kiến trúc (Developer Guide)** |
-| `docs/services/recommender/SPRING_BATCH_DEMO.md`                | **Kịch bản Demo Spring Batch & Câu hỏi Thuyết trình Đồ án** |
 | `docs/run/API_GATEWAY_AND_SERVICE_COMMUNICATION.md`            | Chi tiết giao tiếp inter-service        |
 | `docs/run/DOCKER_SETUP.md`                                     | Hướng dẫn Docker đầy đủ                |
 | `docs/database/README.md`                                      | Hướng dẫn Flyway migration              |

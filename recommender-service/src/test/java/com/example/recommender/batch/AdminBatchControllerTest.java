@@ -1,9 +1,7 @@
 package com.example.recommender.batch;
 
-import com.example.recommender.batch.service.DemoDataSeederService;
 import com.example.recommender.controller.AdminBatchController;
 import com.example.recommender.dto.batch.JobExecutionResponse;
-import com.example.recommender.dto.batch.SeedDataResponse;
 import com.example.recommender.exception.AccessDeniedException;
 import com.example.recommender.exception.JobConflictException;
 import com.example.recommender.util.UserContext;
@@ -52,13 +50,7 @@ class AdminBatchControllerTest {
     private ApplicationContext applicationContext;
 
     @Mock
-    private DemoDataSeederService demoDataSeederService;
-
-    @Mock
     private JobLauncher asyncJobLauncher;
-
-    @Mock
-    private com.example.recommender.batch.config.DemoFailureSwitch demoFailureSwitch;
 
     private AdminBatchController controller;
 
@@ -71,36 +63,13 @@ class AdminBatchControllerTest {
                 jobExplorer,
                 jobOperator,
                 applicationContext,
-                demoDataSeederService,
-                asyncJobLauncher,
-                demoFailureSwitch
+                asyncJobLauncher
         );
     }
 
     @AfterEach
     void tearDown() {
         mockedUserContext.close();
-    }
-
-    @Test
-    @DisplayName("Admin gọi seedDemoData: thành công trả về SeedDataResponse")
-    void testSeedDemoData_Success() {
-        SeedDataResponse seedResp = SeedDataResponse.builder()
-                .postsCreated(100)
-                .interactionsCreated(200)
-                .followsCreated(50)
-                .malformedPostsCreated(3)
-                .message("OK")
-                .build();
-
-        when(demoDataSeederService.seedDemoData(100)).thenReturn(seedResp);
-
-        ResponseEntity<SeedDataResponse> response = controller.seedDemoData(100);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(100, response.getBody().getPostsCreated());
-        mockedUserContext.verify(UserContext::requireAdmin, times(1));
     }
 
     @Test
@@ -120,7 +89,7 @@ class AdminBatchControllerTest {
 
         when(asyncJobLauncher.run(eq(mockJob), any(JobParameters.class))).thenReturn(jobExecution);
 
-        ResponseEntity<JobExecutionResponse> response = controller.runJob("trendingPostsJob", null);
+        ResponseEntity<JobExecutionResponse> response = controller.runJob("trendingPostsJob");
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -139,7 +108,7 @@ class AdminBatchControllerTest {
         when(runningExecution.getId()).thenReturn(99L);
         when(jobExplorer.findRunningJobExecutions("trendingPostsJob")).thenReturn(Set.of(runningExecution));
 
-        assertThrows(JobConflictException.class, () -> controller.runJob("trendingPostsJob", null));
+        assertThrows(JobConflictException.class, () -> controller.runJob("trendingPostsJob"));
     }
 
     @Test
@@ -224,7 +193,7 @@ class AdminBatchControllerTest {
     void testRunJob_NotFound() {
         when(applicationContext.containsBean("nonExistentJob")).thenReturn(false);
         assertThrows(com.example.recommender.exception.ResourceNotFoundException.class,
-                () -> controller.runJob("nonExistentJob", null));
+                () -> controller.runJob("nonExistentJob"));
     }
 
     @Test
@@ -233,30 +202,5 @@ class AdminBatchControllerTest {
         when(jobExplorer.getJobExecution(999L)).thenReturn(null);
         assertThrows(com.example.recommender.exception.ResourceNotFoundException.class,
                 () -> controller.getExecution(999L));
-    }
-
-    @Test
-    @DisplayName("runJob với failAtItem: vũ trang DemoFailureSwitch")
-    void testRunJob_WithFailAtItem_ArmsSwitch() throws Exception {
-        Job mockJob = mock(Job.class);
-        when(applicationContext.containsBean("trendingPostsJob")).thenReturn(true);
-        when(applicationContext.getBean("trendingPostsJob")).thenReturn(mockJob);
-        when(jobExplorer.findRunningJobExecutions("trendingPostsJob")).thenReturn(Collections.emptySet());
-
-        JobInstance jobInstance = new JobInstance(10L, "trendingPostsJob");
-        JobExecution jobExecution = new JobExecution(101L, jobInstance, new JobParameters());
-        jobExecution.setStatus(BatchStatus.STARTED);
-        jobExecution.setCreateTime(LocalDateTime.now());
-        jobExecution.setStartTime(LocalDateTime.now());
-        jobExecution.setExitStatus(ExitStatus.UNKNOWN);
-
-        when(asyncJobLauncher.run(eq(mockJob), any(JobParameters.class))).thenReturn(jobExecution);
-
-        ResponseEntity<JobExecutionResponse> response = controller.runJob("trendingPostsJob", 45);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(101L, response.getBody().getJobExecutionId());
-        verify(demoFailureSwitch, times(1)).arm();
     }
 }

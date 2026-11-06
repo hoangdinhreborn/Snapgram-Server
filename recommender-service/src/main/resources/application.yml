@@ -66,5 +66,3 @@ recommender:
     trending-cron: ${RECOMMENDER_TRENDING_CRON:0 0 */2 * * *}
     user-rec-cron: ${RECOMMENDER_USER_REC_CRON:0 0 3 * * *}
     scheduled-enabled: ${RECOMMENDER_BATCH_SCHEDULED_ENABLED:false}
-    demo:
-      enabled: ${DEMO_BATCH_ENABLED:true}

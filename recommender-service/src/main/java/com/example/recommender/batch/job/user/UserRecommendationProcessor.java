@@ -39,12 +39,6 @@ public class UserRecommendationProcessor implements ItemProcessor<UUID, List<Rec
             throw new MalformedPostException("User ID không được để null");
         }
 
-        // Demo skip nếu gặp ID dị thường cố ý
-        if (userId.toString().startsWith("00000000")) {
-            log.warn("⚠️ [DEMO SKIP] Phát hiện user ID lỗi cố ý {}. Đang bỏ qua...", userId);
-            throw new MalformedPostException("Demo Skip: Bỏ qua user ID dị thường " + userId);
-        }
-
         // Tập hợp danh sách cần loại trừ (chính mình, người đã follow, người chặn/mute)
         Set<UUID> excluded = new HashSet<>();
         excluded.add(userId);
