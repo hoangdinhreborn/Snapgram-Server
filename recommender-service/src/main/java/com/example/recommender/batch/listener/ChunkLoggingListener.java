@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
-public class PrettyChunkListener implements ChunkListener {
+public class ChunkLoggingListener implements ChunkListener {
 
     @Override
     public void afterChunk(ChunkContext context) {
@@ -21,14 +21,13 @@ public class PrettyChunkListener implements ChunkListener {
         long writeCount = stepExecution.getWriteCount();
         long skipCount = stepExecution.getSkipCount();
 
-        log.info("[CHUNK COMMITTED] Step: [{}] | Chunk #{} | Read: {}, Written: {}, Skipped: {}",
+        log.debug("chunk_committed step={} commitCount={} readCount={} writeCount={} skipCount={}",
                 stepExecution.getStepName(), commitCount, readCount, writeCount, skipCount);
     }
 
     @Override
     public void afterChunkError(ChunkContext context) {
         StepExecution stepExecution = context.getStepContext().getStepExecution();
-        log.warn("⚠️ [CHUNK ROLLBACK] Step: [{}] encountered an error during chunk execution",
-                stepExecution.getStepName());
+        log.warn("chunk_rollback step={}", stepExecution.getStepName());
     }
 }

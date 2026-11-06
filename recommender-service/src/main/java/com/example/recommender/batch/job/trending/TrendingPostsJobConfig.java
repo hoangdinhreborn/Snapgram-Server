@@ -1,8 +1,9 @@
 package com.example.recommender.batch.job.trending;
 
-import com.example.recommender.batch.listener.CustomSkipListener;
-import com.example.recommender.batch.listener.PrettyBatchJobListener;
-import com.example.recommender.batch.listener.PrettyChunkListener;
+import com.example.recommender.batch.config.BatchProperties;
+import com.example.recommender.batch.listener.ChunkLoggingListener;
+import com.example.recommender.batch.listener.ItemSkipListener;
+import com.example.recommender.batch.listener.JobExecutionLoggingListener;
 import com.example.recommender.entity.RecommenderPostView;
 import com.example.recommender.entity.RecommenderTrendingPost;
 import com.example.recommender.exception.MalformedPostException;
@@ -16,7 +17,6 @@ import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.data.RepositoryItemReader;
 import org.springframework.batch.infrastructure.item.data.builder.RepositoryItemReaderBuilder;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.Sort;
@@ -41,12 +41,11 @@ public class TrendingPostsJobConfig {
     private final TrendingPostWriter trendingPostWriter;
     private final TrendingPostRedisUpdateListener trendingPostRedisUpdateListener;
 
-    private final PrettyBatchJobListener prettyBatchJobListener;
-    private final PrettyChunkListener prettyChunkListener;
-    private final CustomSkipListener customSkipListener;
+    private final JobExecutionLoggingListener jobExecutionLoggingListener;
+    private final ChunkLoggingListener chunkLoggingListener;
+    private final ItemSkipListener itemSkipListener;
 
-    @Value("${recommender.batch.chunk-size:20}")
-    private int chunkSize;
+    private final BatchProperties batchProperties;
 
     @Bean
     @StepScope
@@ -61,7 +60,7 @@ public class TrendingPostsJobConfig {
                 .repository(postViewRepository)
                 .methodName("findByVisibility")
                 .arguments(List.of("PUBLIC"))
-                .pageSize(chunkSize)
+                .pageSize(batchProperties.getChunkSize())
                 .sorts(sorts)
                 .saveState(true)
                 .build();
@@ -70,15 +69,15 @@ public class TrendingPostsJobConfig {
     @Bean
     public Step trendingPostsStep() {
         return new StepBuilder(STEP_NAME, jobRepository)
-                .<RecommenderPostView, RecommenderTrendingPost>chunk(chunkSize, transactionManager)
+                .<RecommenderPostView, RecommenderTrendingPost>chunk(batchProperties.getChunkSize(), transactionManager)
                 .reader(trendingPostReader())
                 .processor(trendingPostProcessor)
                 .writer(trendingPostWriter)
                 .faultTolerant()
                 .skip(MalformedPostException.class)
-                .skipLimit(100)
-                .listener(prettyChunkListener)
-                .listener(customSkipListener)
+                .skipLimit(batchProperties.getSkipLimit())
+                .listener(chunkLoggingListener)
+                .listener(itemSkipListener)
                 .listener(trendingPostRedisUpdateListener)
                 .build();
     }
@@ -86,7 +85,7 @@ public class TrendingPostsJobConfig {
     @Bean(name = JOB_NAME)
     public Job trendingPostsJob() {
         return new JobBuilder(JOB_NAME, jobRepository)
-                .listener(prettyBatchJobListener)
+                .listener(jobExecutionLoggingListener)
                 .start(trendingPostsStep())
                 .build();
     }

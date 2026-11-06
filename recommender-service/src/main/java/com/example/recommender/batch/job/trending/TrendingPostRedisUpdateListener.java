@@ -48,11 +48,10 @@ public class TrendingPostRedisUpdateListener implements StepExecutionListener {
                 // Ghi Top 50 vào Redis cache
                 String json = objectMapper.writeValueAsString(topPosts);
                 redisTemplate.opsForValue().set(REDIS_TRENDING_KEY, json, CACHE_TTL);
-                log.info("🔥 [REDIS CACHE UPDATED] Đã lưu Top {} bài viết trending (rank 1-{}) vào key '{}' (TTL: {})",
-                        topPosts.size(), topPosts.size(), REDIS_TRENDING_KEY, CACHE_TTL);
+                log.info("redis_cache_updated cacheKey={} count={} ttl={}", REDIS_TRENDING_KEY, topPosts.size(), CACHE_TTL);
             }
         } catch (Exception e) {
-            log.warn("Không thể cập nhật Redis cache cho trending posts: {}", e.getMessage());
+            log.warn("redis_cache_update_failed cacheKey={} reason={}", REDIS_TRENDING_KEY, e.getMessage());
         }
 
         return stepExecution.getExitStatus();

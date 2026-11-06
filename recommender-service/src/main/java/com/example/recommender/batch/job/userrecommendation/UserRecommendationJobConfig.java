@@ -1,8 +1,9 @@
-package com.example.recommender.batch.job.user;
+package com.example.recommender.batch.job.userrecommendation;
 
-import com.example.recommender.batch.listener.CustomSkipListener;
-import com.example.recommender.batch.listener.PrettyBatchJobListener;
-import com.example.recommender.batch.listener.PrettyChunkListener;
+import com.example.recommender.batch.config.BatchProperties;
+import com.example.recommender.batch.listener.ChunkLoggingListener;
+import com.example.recommender.batch.listener.ItemSkipListener;
+import com.example.recommender.batch.listener.JobExecutionLoggingListener;
 import com.example.recommender.entity.RecommenderUserRecommendation;
 import com.example.recommender.exception.MalformedPostException;
 import com.example.recommender.repository.RecommenderFollowViewRepository;
@@ -15,16 +16,12 @@ import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.data.RepositoryItemReader;
 import org.springframework.batch.infrastructure.item.data.builder.RepositoryItemReaderBuilder;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.Sort;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Configuration
 @RequiredArgsConstructor
@@ -40,17 +37,16 @@ public class UserRecommendationJobConfig {
     private final UserRecommendationProcessor userRecommendationProcessor;
     private final UserRecommendationWriter userRecommendationWriter;
 
-    private final PrettyBatchJobListener prettyBatchJobListener;
-    private final PrettyChunkListener prettyChunkListener;
-    private final CustomSkipListener customSkipListener;
+    private final JobExecutionLoggingListener jobExecutionLoggingListener;
+    private final ChunkLoggingListener chunkLoggingListener;
+    private final ItemSkipListener itemSkipListener;
 
-    @Value("${recommender.batch.chunk-size:20}")
-    private int chunkSize;
+    private final BatchProperties batchProperties;
 
     @Bean
     @StepScope
     public RepositoryItemReader<UUID> userRecommendationReader() {
-        Map<String, Sort.Direction> sorts = new java.util.LinkedHashMap<>();
+        Map<String, Sort.Direction> sorts = new LinkedHashMap<>();
         sorts.put("id.followerId", Sort.Direction.ASC);
 
         return new RepositoryItemReaderBuilder<UUID>()
@@ -58,7 +54,7 @@ public class UserRecommendationJobConfig {
                 .repository(followViewRepository)
                 .methodName("findDistinctFollowerIds")
                 .arguments(Collections.emptyList())
-                .pageSize(chunkSize)
+                .pageSize(batchProperties.getChunkSize())
                 .sorts(sorts)
                 .saveState(true)
                 .build();
@@ -67,22 +63,22 @@ public class UserRecommendationJobConfig {
     @Bean
     public Step userRecommendationStep() {
         return new StepBuilder(STEP_NAME, jobRepository)
-                .<UUID, List<RecommenderUserRecommendation>>chunk(chunkSize, transactionManager)
+                .<UUID, List<RecommenderUserRecommendation>>chunk(batchProperties.getChunkSize(), transactionManager)
                 .reader(userRecommendationReader())
                 .processor(userRecommendationProcessor)
                 .writer(userRecommendationWriter)
                 .faultTolerant()
                 .skip(MalformedPostException.class)
-                .skipLimit(100)
-                .listener(prettyChunkListener)
-                .listener(customSkipListener)
+                .skipLimit(batchProperties.getSkipLimit())
+                .listener(chunkLoggingListener)
+                .listener(itemSkipListener)
                 .build();
     }
 
     @Bean(name = JOB_NAME)
     public Job userRecommendationJob() {
         return new JobBuilder(JOB_NAME, jobRepository)
-                .listener(prettyBatchJobListener)
+                .listener(jobExecutionLoggingListener)
                 .start(userRecommendationStep())
                 .build();
     }

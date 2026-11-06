@@ -1,6 +1,6 @@
 package com.example.recommender.batch;
 
-import com.example.recommender.batch.job.user.UserRecommendationProcessor;
+import com.example.recommender.batch.job.userrecommendation.UserRecommendationProcessor;
 import com.example.recommender.entity.RecommenderUserRecommendation;
 import com.example.recommender.exception.MalformedPostException;
 import com.example.recommender.repository.RecommenderBlockViewRepository;

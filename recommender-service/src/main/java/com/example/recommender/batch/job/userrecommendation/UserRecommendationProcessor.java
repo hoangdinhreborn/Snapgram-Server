@@ -1,4 +1,4 @@
-package com.example.recommender.batch.job.user;
+package com.example.recommender.batch.job.userrecommendation;
 
 import com.example.recommender.entity.RecommenderUserRecommendation;
 import com.example.recommender.exception.MalformedPostException;
@@ -49,7 +49,7 @@ public class UserRecommendationProcessor implements ItemProcessor<UUID, List<Rec
         List<RecommenderUserRecommendation> result = new ArrayList<>();
         Instant executionTime = Instant.ofEpochMilli(runTimestamp);
 
-        // 1. Gợi ý theo Friend-of-Friends (bạn chung)
+        // Gợi ý theo Friend-of-Friends (bạn chung)
         List<Object[]> fofList = followViewRepository.findFriendOfFriendsWithMutualCount(userId);
         for (Object[] row : fofList) {
             UUID candidateId = (UUID) row[0];

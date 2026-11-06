@@ -1,4 +1,4 @@
-package com.example.recommender.batch.job.user;
+package com.example.recommender.batch.job.userrecommendation;
 
 import com.example.recommender.entity.RecommenderUserRecommendation;
 import com.example.recommender.repository.RecommenderUserRecommendationRepository;
@@ -44,14 +44,14 @@ public class UserRecommendationWriter implements ItemWriter<List<RecommenderUser
                     String json = objectMapper.writeValueAsString(list);
                     redisTemplate.opsForValue().set(key, json, CACHE_TTL);
                 } catch (Exception e) {
-                    log.warn("Lỗi khi ghi Redis cache cho user {}: {}", userId, e.getMessage());
+                    log.warn("redis_cache_user_rec_failed userId={} reason={}", userId, e.getMessage());
                 }
             }
         }
 
         if (!toSave.isEmpty()) {
             recommendationRepository.saveAll(toSave);
-            log.debug("Đã lưu {} gợi ý bạn bè vào DB và Redis cache", toSave.size());
+            log.debug("user_recommendations_saved count={}", toSave.size());
         }
     }
 }

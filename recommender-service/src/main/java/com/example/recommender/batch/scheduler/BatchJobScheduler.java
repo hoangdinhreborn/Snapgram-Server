@@ -1,7 +1,8 @@
 package com.example.recommender.batch.scheduler;
 
+import com.example.recommender.batch.config.BatchProperties;
 import com.example.recommender.batch.job.trending.TrendingPostsJobConfig;
-import com.example.recommender.batch.job.user.UserRecommendationJobConfig;
+import com.example.recommender.batch.job.userrecommendation.UserRecommendationJobConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.job.Job;
@@ -11,7 +12,6 @@ import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.explore.JobExplorer;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +23,7 @@ import java.util.Set;
 public class BatchJobScheduler {
 
     private final JobExplorer jobExplorer;
+    private final BatchProperties batchProperties;
 
     @Qualifier("asyncJobLauncher")
     private final JobLauncher asyncJobLauncher;
@@ -33,16 +34,13 @@ public class BatchJobScheduler {
     @Qualifier(UserRecommendationJobConfig.JOB_NAME)
     private final Job userRecommendationJob;
 
-    @Value("${recommender.batch.scheduled-enabled:false}")
-    private boolean scheduledEnabled;
-
     /**
      * Chạy định kỳ job tính toán bài viết trending.
      */
     @Scheduled(cron = "${recommender.batch.trending-cron:0 0 */2 * * *}")
     public void scheduleTrendingPostsJob() {
-        if (!scheduledEnabled) {
-            log.debug("Batch scheduling bị tắt (recommender.batch.scheduled-enabled=false). Bỏ qua trendingPostsJob.");
+        if (!batchProperties.isScheduledEnabled()) {
+            log.debug("Batch scheduling disabled (recommender.batch.scheduled-enabled=false). Skipping trendingPostsJob.");
             return;
         }
         triggerJobIfIdle(trendingPostsJob);
@@ -53,8 +51,8 @@ public class BatchJobScheduler {
      */
     @Scheduled(cron = "${recommender.batch.user-rec-cron:0 0 3 * * *}")
     public void scheduleUserRecommendationJob() {
-        if (!scheduledEnabled) {
-            log.debug("Batch scheduling bị tắt (recommender.batch.scheduled-enabled=false). Bỏ qua userRecommendationJob.");
+        if (!batchProperties.isScheduledEnabled()) {
+            log.debug("Batch scheduling disabled (recommender.batch.scheduled-enabled=false). Skipping userRecommendationJob.");
             return;
         }
         triggerJobIfIdle(userRecommendationJob);
@@ -64,8 +62,7 @@ public class BatchJobScheduler {
         String jobName = job.getName();
         Set<JobExecution> runningExecutions = jobExplorer.findRunningJobExecutions(jobName);
         if (!runningExecutions.isEmpty()) {
-            log.warn("Job '{}' hiện đang có {} execution đang chạy, bỏ qua lần trigger định kỳ này để tránh xung đột.",
-                    jobName, runningExecutions.size());
+            log.warn("scheduler_skip_running job={} runningCount={}", jobName, runningExecutions.size());
             return;
         }
 
@@ -75,10 +72,10 @@ public class BatchJobScheduler {
                     .addString("triggerSource", "SCHEDULER")
                     .toJobParameters();
 
-            log.info("⏰ [SCHEDULER TRIGGER] Bắt đầu chạy tự động job: {}", jobName);
+            log.info("scheduler_trigger job={} status=started", jobName);
             asyncJobLauncher.run(job, params);
         } catch (Exception e) {
-            log.error("Lỗi khi scheduler kích hoạt job '{}': {}", jobName, e.getMessage(), e);
+            log.error("scheduler_trigger_error job={} message={}", jobName, e.getMessage(), e);
         }
     }
 }

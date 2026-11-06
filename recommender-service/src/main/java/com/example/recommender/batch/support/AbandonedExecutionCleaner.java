@@ -1,4 +1,4 @@
-package com.example.recommender.batch.config;
+package com.example.recommender.batch.support;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,12 +17,13 @@ import java.util.Set;
 
 /**
  * Tự động phục hồi các JobExecution/StepExecution mồ côi (orphaned) khi service khởi động.
- * Nếu lần chạy trước bị tắt đột ngột (Ctrl+C, crash, container restart), các execution đang ở trạng
+ * Nếu lần chạy trước bị tắt đột ngột (crash, container restart, OOM), các execution đang ở trạng
  * thái STARTING/STARTED sẽ bị kẹt vĩnh viễn và khiến API trả về HTTP 409 Conflict.
- * Component này quét và đánh dấu FAILED các execution mồ côi đó lúc startup.
+ * Component này quét và đánh dấu FAILED các execution mồ côi đó lúc startup để cho phép restart an toàn.
  *
- * Giới hạn: Cơ chế này an toàn cho mô hình Single-Instance. Nếu scale nhiều instance đồng thời,
- * cần kết hợp cơ chế Distributed Lock (như ShedLock) hoặc heartbeat.
+ * Giới hạn kiến trúc: Cơ chế quét lúc startup này an toàn cho mô hình Single-Instance.
+ * Khi scale đa instance đồng thời, cần sử dụng Distributed Lock (như ShedLock hoặc Redis lock)
+ * để tránh việc instance mới khởi động đánh dấu nhầm execution đang chạy thực sự của instance khác.
  */
 @Component
 @Slf4j
@@ -38,7 +39,7 @@ public class AbandonedExecutionCleaner implements ApplicationRunner {
             for (String jobName : jobExplorer.getJobNames()) {
                 Set<JobExecution> runningExecutions = jobExplorer.findRunningJobExecutions(jobName);
                 for (JobExecution execution : runningExecutions) {
-                    log.warn("⚠️ [CLEANUP STARTUP] Phát hiện JobExecution mồ côi id={} của job '{}' đang ở trạng thái {}. Đánh dấu FAILED.",
+                    log.warn("abandoned_execution_detected id={} job={} oldStatus={} newStatus=FAILED",
                             execution.getId(), jobName, execution.getStatus());
 
                     execution.setStatus(BatchStatus.FAILED);
@@ -57,7 +58,7 @@ public class AbandonedExecutionCleaner implements ApplicationRunner {
                 }
             }
         } catch (Exception e) {
-            log.error("Lỗi khi dọn dẹp execution mồ côi lúc khởi động: {}", e.getMessage(), e);
+            log.error("abandoned_execution_cleaner_error message={}", e.getMessage(), e);
         }
     }
 }
