@@ -273,4 +273,56 @@ class GatewayErrorResponseTest {
 
         assertThat(exchange.getResponse().getStatusCode()).isNull();
     }
+
+    @Test
+    @DisplayName("JwtAuthenticationFilter blocks missing token on /api/recommendations/trending with 401")
+    void jwtFilter_MissingToken_RecommendationsRoute_Returns401() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(authWebClient, jwtPayloadUtil, objectMapper);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/recommendations/trending").build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        filter.filter(exchange, filterChain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("JwtAuthenticationFilter blocks missing token on /api/admin/batch/executions with 401")
+    void jwtFilter_MissingToken_AdminBatchRoute_Returns401() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(authWebClient, jwtPayloadUtil, objectMapper);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/admin/batch/executions").build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        filter.filter(exchange, filterChain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("HeaderSanitizationFilter strips spoofed X-User-Roles and X-User-Id from incoming request")
+    void headerSanitizationFilter_StripsUntrustedInternalHeaders() {
+        HeaderSanitizationFilter filter = new HeaderSanitizationFilter();
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/recommendations/trending")
+                .header("X-User-Roles", "ADMIN")
+                .header("X-User-Id", "spoofed-user-id")
+                .header("x-user-roles", "ADMIN")
+                .header("X-Custom-Client", "SnapgramWeb")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        when(filterChain.filter(any())).thenAnswer(invocation -> {
+            org.springframework.web.server.ServerWebExchange passedExchange = invocation.getArgument(0);
+            HttpHeaders headers = passedExchange.getRequest().getHeaders();
+            assertThat(headers.getFirst("X-User-Roles")).isNull();
+            assertThat(headers.getFirst("X-User-Id")).isNull();
+            assertThat(headers.getFirst("x-user-roles")).isNull();
+            assertThat(headers.getFirst("X-Custom-Client")).isEqualTo("SnapgramWeb");
+            return Mono.empty();
+        });
+
+        filter.filter(exchange, filterChain).block();
+    }
 }

@@ -380,8 +380,8 @@ services:
     image: snapgram/recommender-service:latest
     container_name: snapgram-recommender-service
     restart: unless-stopped
-    ports:
-      - "8090:8090"
+    expose:
+      - "8090"
     env_file:
       - ../.env
     environment:
