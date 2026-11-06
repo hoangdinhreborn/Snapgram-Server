@@ -17,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
-@EnableConfigurationProperties({JwtProperties.class, FacebookOAuthProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, FacebookOAuthProperties.class, TurnstileProperties.class})
 @EnableScheduling
 public class SecurityConfig {
 

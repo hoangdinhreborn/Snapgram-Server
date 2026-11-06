@@ -174,6 +174,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * InvalidTurnstileException — 403 Forbidden
+     */
+    @ExceptionHandler(InvalidTurnstileException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTurnstile(InvalidTurnstileException ex) {
+        log.warn("Turnstile bot verification failed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(403, "BOT_VERIFICATION_FAILED", "Forbidden", ex.getMessage()));
+    }
+
+    /**
      * Generic AuthException — 400
      */
     @ExceptionHandler(AuthException.class)
