@@ -1,6 +1,7 @@
 package com.example.recommender.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.core.job.UnexpectedJobExecutionException;
 import org.springframework.batch.core.launch.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.launch.JobRestartException;
@@ -73,6 +74,48 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.CONFLICT.value())
                 .code("JOB_CONFLICT")
                 .error("Conflict")
+                .message(e.getMessage())
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    @ExceptionHandler(UnexpectedJobExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleUnexpectedJobExecution(UnexpectedJobExecutionException e) {
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        String message = e.getMessage() != null ? e.getMessage() : "";
+
+        if (cause instanceof NoSuchJobException || message.contains("No job configuration with the name")
+                || message.contains("job not restartable")) {
+            log.warn("Job not found/not restartable during batch execution: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .code("NOT_FOUND")
+                    .error("Not Found")
+                    .message(cause.getMessage() != null ? cause.getMessage() : e.getMessage())
+                    .timestamp(Instant.now())
+                    .build());
+        }
+
+        if (cause instanceof JobInstanceAlreadyCompleteException
+                || cause instanceof JobExecutionAlreadyRunningException
+                || cause instanceof JobRestartException
+                || message.contains("already complete")
+                || message.contains("already running")) {
+            log.warn("Job conflict/restart error in UnexpectedJobExecutionException: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.builder()
+                    .status(HttpStatus.CONFLICT.value())
+                    .code("JOB_CONFLICT")
+                    .error("Conflict")
+                    .message(cause.getMessage() != null ? cause.getMessage() : e.getMessage())
+                    .timestamp(Instant.now())
+                    .build());
+        }
+
+        log.error("Unexpected job execution failure: {}", e.getMessage(), e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ErrorResponse.builder()
+                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .code("INTERNAL_SERVER_ERROR")
+                .error("Internal Server Error")
                 .message(e.getMessage())
                 .timestamp(Instant.now())
                 .build());

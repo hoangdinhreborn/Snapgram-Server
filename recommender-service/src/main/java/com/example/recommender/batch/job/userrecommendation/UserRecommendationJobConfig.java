@@ -70,6 +70,8 @@ public class UserRecommendationJobConfig {
                 .faultTolerant()
                 .skip(MalformedPostException.class)
                 .skipLimit(batchProperties.getSkipLimit())
+                .retry(org.springframework.dao.TransientDataAccessException.class)
+                .retryLimit(3)
                 .listener(chunkLoggingListener)
                 .listener(itemSkipListener)
                 .build();

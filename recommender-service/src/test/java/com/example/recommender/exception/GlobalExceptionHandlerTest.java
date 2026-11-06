@@ -79,4 +79,37 @@ class GlobalExceptionHandlerTest {
         assertEquals("Tham số 'id' không hợp lệ: giá trị 'null' không đúng định dạng số nguyên yêu cầu.",
                 response.getBody().getMessage());
     }
+
+    @Test
+    @DisplayName("UnexpectedJobExecutionException với nguyên nhân job already complete được map về HTTP 409 Conflict")
+    void testHandleUnexpectedJobExecution_Conflict() {
+        org.springframework.batch.core.job.UnexpectedJobExecutionException ex =
+                new org.springframework.batch.core.job.UnexpectedJobExecutionException(
+                        "job already complete",
+                        new JobInstanceAlreadyCompleteException("A complete execution already exists")
+                );
+
+        ResponseEntity<ErrorResponse> response = handler.handleUnexpectedJobExecution(ex);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("JOB_CONFLICT", response.getBody().getCode());
+        assertEquals("A complete execution already exists", response.getBody().getMessage());
+    }
+
+    @Test
+    @DisplayName("UnexpectedJobExecutionException với nguyên nhân job not restartable được map về HTTP 404 Not Found")
+    void testHandleUnexpectedJobExecution_NotFound() {
+        org.springframework.batch.core.job.UnexpectedJobExecutionException ex =
+                new org.springframework.batch.core.job.UnexpectedJobExecutionException(
+                        "job not restartable with name=trendingPostsJob",
+                        new org.springframework.batch.core.launch.NoSuchJobException("No job registered")
+                );
+
+        ResponseEntity<ErrorResponse> response = handler.handleUnexpectedJobExecution(ex);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("NOT_FOUND", response.getBody().getCode());
+    }
 }
