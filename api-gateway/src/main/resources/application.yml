@@ -42,7 +42,7 @@ spring:
             - id: recommender-service
               uri: lb://recommender-service
               predicates:
-                - Path=/api/feed/**
+                - Path=/api/feed/**,/api/recommendations/**,/api/admin/batch/**
 
             - id: media-service
               uri: lb://media-service
@@ -108,6 +108,8 @@ app:
       - http://127.0.0.1:3001
       - http://127.0.0.1:5173
       - https://snapgram.local
+      - https://maintaindev.id.vn
+      - http://maintaindev.id.vn
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     capacity: ${RATE_LIMIT_CAPACITY:5000}

@@ -74,4 +74,6 @@ public interface RecommenderPostViewRepository extends JpaRepository<Recommender
             WHERE p.tags IS NOT NULL AND p.tags <> '' AND p.createdAt >= :since
             """)
     List<String> findRecentTags(@Param("since") Instant since);
+
+    org.springframework.data.domain.Page<RecommenderPostView> findByVisibility(String visibility, org.springframework.data.domain.Pageable pageable);
 }

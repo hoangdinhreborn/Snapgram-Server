@@ -1,6 +1,8 @@
 package com.example.auth.dto.auth;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -27,4 +29,8 @@ public class RegisterRequest {
 
     @Size(max = 100, message = "Display name must not exceed 100 characters")
     private String displayName;
+
+    @JsonProperty("cf-turnstile-response")
+    @JsonAlias({"cf-turnstile-response", "turnstileToken"})
+    private String turnstileToken;
 }

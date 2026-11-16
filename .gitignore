@@ -1,5 +1,6 @@
 .idea/
 .vscode/
+.openidea/
 *.iml
 .DS_Store
 .env
@@ -9,3 +10,13 @@
 *.class
 *.log
 docker-data/
+
+# SSL certificates and ACME challenges
+infra/nginx/certbot/conf/archive/
+infra/nginx/certbot/conf/live/
+infra/nginx/certbot/conf/keys/
+infra/nginx/certbot/conf/renewal/
+infra/nginx/certbot/www/*
+*.pem
+*.key
+*.crt

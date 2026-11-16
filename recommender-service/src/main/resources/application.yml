@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: recommender-service
+  main:
+    allow-bean-definition-overriding: true
   threads:
     virtual:
       enabled: true
@@ -24,12 +26,19 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  batch:
+    jdbc:
+      initialize-schema: never
+    job:
+      enabled: false
   jpa:
     open-in-view: false
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
+          batch_size: 100
+        order_inserts: true
 
 management:
   endpoints:
@@ -50,3 +59,10 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
+
+recommender:
+  batch:
+    chunk-size: ${RECOMMENDER_BATCH_CHUNK_SIZE:20}
+    trending-cron: ${RECOMMENDER_TRENDING_CRON:0 0 */2 * * *}
+    user-rec-cron: ${RECOMMENDER_USER_REC_CRON:0 0 3 * * *}
+    scheduled-enabled: ${RECOMMENDER_BATCH_SCHEDULED_ENABLED:false}

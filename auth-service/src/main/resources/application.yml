@@ -26,6 +26,12 @@ app:
   mail:
     from: ${GOOGLE_MAIL_USERNAME:}
     from-name: "Snapgram"
+  turnstile:
+    secret: ${TURNSTILE_SECRET:}
+    allowed-hostnames: ${TURNSTILE_HOSTNAMES:localhost,127.0.0.1}
+    verify-url: https://challenges.cloudflare.com/turnstile/v0/siteverify
+    enabled: ${TURNSTILE_ENABLED:true}
+    timeout-seconds: 10
 spring:
   application:
     name: auth-service

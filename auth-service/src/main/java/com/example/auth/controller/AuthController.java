@@ -11,6 +11,7 @@ import com.example.auth.security.SecurityUtils;
 import com.example.auth.service.AuthService;
 import com.example.auth.service.EmailVerificationService;
 import com.example.auth.service.PasswordResetService;
+import com.example.auth.service.TurnstileVerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final CookieUtils cookieUtils;
     private final JwtProperties jwtProperties;
+    private final TurnstileVerificationService turnstileVerificationService;
 
     // ─────────────────────────────────────────────────────────────
     // Register / Login / Refresh / Logout / Verify
@@ -41,7 +43,11 @@ public class AuthController {
 
     /** POST /api/auth/register */
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<AuthResponse> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        turnstileVerificationService.verify(request.getTurnstileToken(), "signup", resolveClientIp(servletRequest));
         AuthResponse response = authService.register(request);
 
         ResponseCookie accessCookie = cookieUtils.createAccessTokenCookie(
@@ -57,7 +63,11 @@ public class AuthController {
 
     /** POST /api/auth/login */
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        turnstileVerificationService.verify(request.getTurnstileToken(), "login", resolveClientIp(servletRequest));
         AuthResponse response = authService.login(request);
 
         if (Boolean.TRUE.equals(response.getRequiresTwoFa())) {
@@ -97,7 +107,11 @@ public class AuthController {
 
     /** POST /api/auth/admin/login */
     @PostMapping("/admin/login")
-    public ResponseEntity<AuthResponse> adminLogin(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> adminLogin(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        turnstileVerificationService.verify(request.getTurnstileToken(), "admin_login", resolveClientIp(servletRequest));
         AuthResponse response = authService.adminLogin(request);
 
         if (Boolean.TRUE.equals(response.getRequiresTwoFa())) {
