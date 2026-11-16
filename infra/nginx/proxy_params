@@ -1,0 +1,18 @@
+# ==============================================================================
+# REUSABLE PROXY PARAMETERS & HEADER INJECTION
+# Đính kèm đầy đủ thông tin client vào upstream services
+# ==============================================================================
+proxy_http_version 1.1;
+
+# Headers định danh
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host $host;
+proxy_set_header X-Forwarded-Port $server_port;
+
+# Buffer handling cho responses có payload lớn (JSON list, media responses)
+proxy_buffer_size 128k;
+proxy_buffers 4 256k;
+proxy_busy_buffers_size 256k;

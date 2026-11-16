@@ -30,8 +30,10 @@ Dự án **Snapgram** là một hệ thống mạng xã hội được xây dự
 | `notification-service`| Gửi thông báo (email, push)            | `8086`     | `notification-service:8086` |
 | `payment-service`     | Cổng thanh toán MoMo, VNPay           | `8087`     | `payment-service:8087`      |
 | `recommender-service` | Gợi ý nội dung / người dùng (Batch)   | *Nội bộ*   | `recommender-service:8090`  |
+| `nginx`               | Edge Reverse Proxy, SSL, DDNS Routing  | `80`, `443`| `snapgram-nginx:80,443`     |
+| `certbot`             | Tự động hóa cấp & gia hạn SSL Cert     | *Nội bộ*   | `snapgram-certbot`          |
 
-> 🔒 **Lưu ý bảo mật:** `recommender-service` không mở port ra host ngoài, mọi truy cập đều phải đi qua `api-gateway` (cổng `8080`) để đảm bảo xác thực tập trung.
+> 🔒 **Lưu ý bảo mật:** `recommender-service` không mở port ra host ngoài, mọi truy cập đều phải đi qua `api-gateway` (cổng `8080`) hoặc Nginx Edge Reverse Proxy (`80`/`443`).
 
 ---
 
@@ -418,6 +420,7 @@ com.example.<service>/
 | Tài liệu                                                        | Nội dung                                |
 |-----------------------------------------------------------------|-----------------------------------------|
 | `docs/DEVELOPER_GUIDE.md`                                       | **Hướng dẫn đọc code & luồng kiến trúc (Developer Guide)** |
+| `docs/run/NGINX_AND_DDNS_GUIDE.md`                              | **Hướng dẫn Nginx Reverse Proxy, DDNS & SSL Let's Encrypt** |
 | `docs/services/recommender/SPRING_BATCH.md`                     | **Kiến trúc & Vận hành Spring Batch 6 (Recommender Service)** |
 | `docs/run/API_GATEWAY_AND_SERVICE_COMMUNICATION.md`            | Chi tiết giao tiếp inter-service        |
 | `docs/run/DOCKER_SETUP.md`                                     | Hướng dẫn Docker đầy đủ                |

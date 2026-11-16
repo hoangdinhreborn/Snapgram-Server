@@ -88,14 +88,14 @@ public class TurnstileVerificationService {
             throw new InvalidTurnstileException("Failed to verify security challenge with Cloudflare Turnstile", e);
         }
 
-        if (response == null || !response.isSuccess()) {
+        if (response == null || !Boolean.TRUE.equals(response.getSuccess())) {
             log.warn("turnstile_rejected reason=verification_failed errors={}",
                     response != null ? response.getErrorCodes() : "null_response");
             throw new InvalidTurnstileException("Security check failed. Please refresh and try again.");
         }
 
-        boolean isTestingKey = response.getMetadata() != null && response.getMetadata().isResultWithTestingKey();
-
+        boolean isTestingKey = response.getMetadata() != null
+                && Boolean.TRUE.equals(response.getMetadata().getResultWithTestingKey());
         if (!isTestingKey) {
             if (expectedAction != null && !expectedAction.equals(response.getAction())) {
                 log.warn("turnstile_rejected reason=action_mismatch expected={} actual={}",

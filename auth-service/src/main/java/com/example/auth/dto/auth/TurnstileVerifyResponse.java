@@ -16,7 +16,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TurnstileVerifyResponse {
 
-    private boolean success;
+    private Boolean success;
 
     @JsonProperty("challenge_ts")
     private String challengeTs;
@@ -39,6 +39,6 @@ public class TurnstileVerifyResponse {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Metadata {
         @JsonProperty("result_with_testing_key")
-        private boolean resultWithTestingKey;
+        private Boolean resultWithTestingKey;
     }
 }
