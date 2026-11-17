@@ -20,3 +20,6 @@ infra/nginx/certbot/www/*
 *.pem
 *.key
 *.crt
+
+# Demo seed assets and state
+scripts/seed/
