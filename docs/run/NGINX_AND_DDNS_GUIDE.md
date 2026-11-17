@@ -1,181 +1,193 @@
-﻿# HÆ°á»›ng Dáº«n TÃ­ch Há»£p Nginx Reverse Proxy, DDNS & SSL Let's Encrypt (Thá»±c Chiáº¿n Lab)
+﻿---
 
-TÃ i liá»‡u hÆ°á»›ng dáº«n há»c táº­p vÃ  váº­n hÃ nh thá»±c táº¿ há»‡ thá»‘ng Edge Ingress cho Snapgram vá»›i tÃªn miá»n Ä‘á»™ng **`hqdev.ddns.net`** (No-IP DDNS).
+# Hướng Dẫn Tích Hợp Nginx Reverse Proxy, DDNS & SSL Let's Encrypt (Thực Chiến Lab)
 
----
-
-## 1. Táº¡i Sao Dá»± Ãn Cáº§n Nginx Reverse Proxy?
-
-Khi cháº¡y há»‡ thá»‘ng Microservices trong mÃ´i trÆ°á»ng thá»±c táº¿, viá»‡c má»Ÿ hÃ ng loáº¡t port ra ngoÃ i (`3000`, `3001`, `8080`, `8083`, `9000`) dáº«n Ä‘áº¿n nhiá»u rá»§i ro vÃ  báº¥t tiá»‡n:
-1. **Lá»— há»•ng báº£o máº­t bá» máº·t (Attack Surface)**: Má»—i port má»Ÿ trá»±c tiáº¿p ra Internet lÃ  má»™t Ä‘iá»ƒm cÃ³ thá»ƒ bá»‹ hacker quÃ©t lá»— há»•ng vÃ  brute-force.
-2. **KhÃ³ cáº¥u hÃ¬nh chá»©ng chá»‰ SSL/TLS**: Pháº£i cÃ i Ä‘áº·t chá»©ng chá»‰ SSL riÃªng láº» cho tá»«ng dá»‹ch vá»¥ vÃ  port khÃ¡c nhau.
-3. **Váº¥n Ä‘á» CORS & Cookie Cross-Origin**: TrÃ¬nh duyá»‡t Ã¡p dá»¥ng chÃ­nh sÃ¡ch Same-Origin kháº¯t khe. Khi Web á»Ÿ port `3000` gá»i API á»Ÿ port `8080`, cookie xÃ¡c thá»±c (`HttpOnly`) ráº¥t dá»… bá»‹ trÃ¬nh duyá»‡t cháº·n (Third-party cookie restriction).
-4. **Giá»›i háº¡n IP máº¡ng gia Ä‘Ã¬nh**: NhÃ  máº¡ng chá»‰ cáº¥p 1 Ä‘á»‹a chá»‰ IP Public. Báº¡n khÃ´ng thá»ƒ má»Ÿ 5 trang web khÃ¡c nhau cÃ¹ng cháº¡y port `80` náº¿u khÃ´ng cÃ³ Reverse Proxy Ä‘á»©ng Ä‘áº§u Ä‘á»ƒ phÃ¢n giáº£i Ä‘Æ°á»ng dáº«n.
-
-### Vai trÃ² cá»§a Nginx trong kiáº¿n trÃºc Snapgram:
-- **Single Entry Point (Cá»•ng duy nháº¥t)**: Chá»‰ má»Ÿ port `80` (HTTP) vÃ  `443` (HTTPS) duy nháº¥t ra tháº¿ giá»›i bÃªn ngoÃ i.
-- **SSL/TLS Termination**: Nginx giáº£i mÃ£ SSL táº­p trung táº¡i cá»•ng vÃ o, sau Ä‘Ã³ forward gÃ³i tin HTTP ná»™i bá»™ tá»‘c Ä‘á»™ cao vÃ o Docker network.
-- **URL Path-Based Routing**: Dá»±a vÃ o tiá»n tá»‘ URL (`/api/`, `/storage/`, `/ws/`, `/admin/`, `/`) Ä‘á»ƒ Ä‘iá»u hÆ°á»›ng chÃ­nh xÃ¡c vÃ o microservice tÆ°Æ¡ng á»©ng.
-- **Äá»™ trá»… tháº¥p & Tá»‘i Æ°u bÄƒng thÃ´ng**: Tá»± Ä‘á»™ng nÃ©n Gzip cÃ¡c file tÄ©nh, há»— trá»£ HTTP/2 Ä‘a luá»“ng (Multiplexing).
-- **Há»— trá»£ WebSockets**: NÃ¢ng cáº¥p káº¿t ná»‘i HTTP sang TCP Stream liÃªn tá»¥c phá»¥c vá»¥ tÃ­nh nÄƒng Nháº¯n tin vÃ  ThÃ´ng bÃ¡o real-time.
+Tài liệu hướng dẫn học tập và vận hành thực tế hệ thống Edge Ingress cho Snapgram với tên miền động **`hqdev.ddns.net`** (No-IP DDNS).
 
 ---
 
-## 2. Báº£n Äá»“ Äá»‹nh Tuyáº¿n (Routing Table)
+## 1. Tại Sao Dự Án Cần Nginx Reverse Proxy?
 
-ToÃ n bá»™ dá»‹ch vá»¥ trong há»‡ thá»‘ng Ä‘Æ°á»£c gom chung vá» má»™t Ä‘á»‹a chá»‰ duy nháº¥t: **`https://hqdev.ddns.net`**:
+Khi chạy hệ thống Microservices trong môi trường thực tế, việc mở hàng loạt port ra ngoài (`3000`, `3001`, `8080`, `8083`, `9000`) dẫn đến nhiều rủi ro và bất tiện:
+1. **Lỗ hổng bảo mật bề mặt (Attack Surface)**: Mỗi port mở trực tiếp ra Internet là một điểm có thể bị hacker quét lỗ hổng và brute-force.
+2. **Khó cấu hình chứng chỉ SSL/TLS**: Phải cài đặt chứng chỉ SSL riêng lẻ cho từng dịch vụ và port khác nhau.
+3. **Vấn đề CORS & Cookie Cross-Origin**: Trình duyệt áp dụng chính sách Same-Origin khắt khe. Khi Web ở port `3000` gọi API ở port `8080`, cookie xác thực (`HttpOnly`) rất dễ bị trình duyệt chặn (Third-party cookie restriction).
+4. **Giới hạn IP mạng gia đình**: Nhà mạng chỉ cấp 1 địa chỉ IP Public. Bạn không thể mở 5 trang web khác nhau cùng chạy port `80` nếu không có Reverse Proxy đứng đầu để phân giải đường dẫn.
+
+### Vai trò của Nginx trong kiến trúc Snapgram:
+- **Single Entry Point (Cổng duy nhất)**: Chỉ mở port `80` (HTTP) và `443` (HTTPS) duy nhất ra thế giới bên ngoài.
+- **SSL/TLS Termination**: Nginx giải mã SSL tập trung tại cổng vào, sau đó forward gói tin HTTP nội bộ tốc độ cao vào Docker network.
+- **URL Path-Based Routing**: Dựa vào tiền tố URL (`/api/`, `/storage/`, `/ws/`, `/admin/`, `/`) để điều hướng chính xác vào microservice tương ứng.
+- **Độ trễ thấp & Tối ưu băng thông**: Tự động nén Gzip các file tĩnh, hỗ trợ HTTP/2 đa luồng (Multiplexing).
+- **Hỗ trợ WebSockets**: Nâng cấp kết nối HTTP sang TCP Stream liên tục phục vụ tính năng Nhắn tin và Thông báo real-time.
+
+---
+
+## 2. Bản Đồ Định Tuyến (Routing Table)
+
+Toàn bộ dịch vụ trong hệ thống được gom chung về một địa chỉ duy nhất: **`https://hqdev.ddns.net`**:
 
 ```
-[Internet / TrÃ¬nh duyá»‡t]
-           â”‚ HTTPS (:443) / HTTP (:80 -> 301)
-           â–¼
-   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-   â”‚                     SNAPGRAM NGINX EDGE                     â”‚
-   â””â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-           â”‚              â”‚              â”‚             â”‚
+[Internet / Trình duyệt]
+           │ HTTPS (:443) / HTTP (:80 -> 301)
+           ▼
+   ┌─────────────────────────────────────────────────────────────┐
+   │                     SNAPGRAM NGINX EDGE                     │
+   └───────┬──────────────┬──────────────┬─────────────┬─────────┘
+           │              │              │             │
     location /api   location /ws   location /storage  location /
-           â”‚              â”‚              â”‚             â”‚
-           â–¼              â–¼              â–¼             â–¼
+           │              │              │             │
+           ▼              ▼              ▼             ▼
       API Gateway    WebSockets      MinIO S3     Next.js Web
       (:8080)        (:8080/ws)      (:9000)      (:3000)
 ```
 
-| URL trÃªn trÃ¬nh duyá»‡t | Upstream Ä‘Ã­ch ná»™i bá»™ | MÃ´ táº£ nghiá»‡p vá»¥ |
+| URL trên trình duyệt | Upstream đích nội bộ | Mô tả nghiệp vụ |
 |---|---|---|
-| `https://hqdev.ddns.net/` | `host.docker.internal:3000` | Giao diá»‡n máº¡ng xÃ£ há»™i Web Client (Next.js) |
-| `https://hqdev.ddns.net/admin` | `host.docker.internal:3001` | Giao diá»‡n quáº£n trá»‹ Admin Portal (Next.js) |
-| `https://hqdev.ddns.net/api/**` | `api-gateway:8080` | ToÃ n bá»™ API Backend (Auth, Content, Media, Payment, Batch...) |
-| `https://hqdev.ddns.net/ws/**` | `api-gateway:8080` | KÃªnh káº¿t ná»‘i WebSocket Chat & Notifications (Upgrade: websocket) |
-| `https://hqdev.ddns.net/storage/**` | `minio:9000` | Truy xuáº¥t áº£nh/video/avatar trá»±c tiáº¿p tá»« bucket S3 |
-| `https://hqdev.ddns.net/health` | `api-gateway:8080/actuator/health` | Kiá»ƒm tra tráº¡ng thÃ¡i hoáº¡t Ä‘á»™ng cá»§a há»‡ thá»‘ng (`200 UP`) |
-| `http://hqdev.ddns.net/.well-known/acme-challenge/*` | `/var/www/certbot` | XÃ¡c thá»±c cáº¥p chá»©ng chá»‰ SSL tá»± Ä‘á»™ng cá»§a Let's Encrypt |
+| `https://hqdev.ddns.net/` | `host.docker.internal:3000` | Giao diện mạng xã hội Web Client (Next.js) |
+| `https://hqdev.ddns.net/admin` | `host.docker.internal:3001` | Giao diện quản trị Admin Portal (Next.js) |
+| `https://hqdev.ddns.net/api/**` | `api-gateway:8080` | Toàn bộ API Backend (Auth, Content, Media, Payment, Batch...) |
+| `https://hqdev.ddns.net/ws/**` | `api-gateway:8080` | Kênh kết nối WebSocket Chat & Notifications (Upgrade: websocket) |
+| `https://hqdev.ddns.net/storage/**` | `minio:9000` | Truy xuất ảnh/video/avatar trực tiếp từ bucket S3 |
+| `https://hqdev.ddns.net/health` | `api-gateway:8080/actuator/health` | Kiểm tra trạng thái hoạt động của hệ thống (`200 UP`) |
+| `http://hqdev.ddns.net/.well-known/acme-challenge/*` | `/var/www/certbot` | Xác thực cấp chứng chỉ SSL tự động của Let's Encrypt |
 
 ---
 
-## 3. Cáº¥u TrÃºc File & ThÆ° Má»¥c Cáº¥u HÃ¬nh Nginx
+## 3. Cấu Trúc File & Thư Mục Cấu Hình Nginx
 
-Cáº¥u hÃ¬nh Nginx Ä‘Æ°á»£c module hÃ³a chuyÃªn nghiá»‡p trong thÆ° má»¥c `Snapgram_server/infra/nginx/`:
+Cấu hình Nginx được module hóa chuyên nghiệp trong thư mục `Snapgram_server/infra/nginx/`:
 
 ```
 Snapgram_server/infra/nginx/
-â”œâ”€â”€ nginx.conf                 # Cáº¥u hÃ¬nh lÃµi Nginx (worker_processes, gzip, log format, timeouts)
-â”œâ”€â”€ proxy_params               # Bá»™ header chuáº©n Ä‘Ã­nh kÃ¨m (Host, X-Real-IP, X-Forwarded-*, buffer)
-â”œâ”€â”€ ssl_params                 # Chuáº©n mÃ£ hÃ³a TLS 1.2/1.3, ciphers báº£o máº­t vÃ  security headers
-â”œâ”€â”€ conf.d/
-â”‚   â”œâ”€â”€ websocket.conf         # Mapping chuyá»ƒn Ä‘á»•i káº¿t ná»‘i HTTP Upgrade sang WebSocket
-â”‚   â””â”€â”€ default.conf           # Server blocks: Cáº¥u hÃ¬nh Port 80 (Redirect & ACME) vÃ  Port 443 (Reverse Proxy)
-â””â”€â”€ certbot/
-    â”œâ”€â”€ conf/                  # NÆ¡i lÆ°u trá»¯ chá»©ng chá»‰ SSL Let's Encrypt (fullchain.pem, privkey.pem)
-    â””â”€â”€ www/                   # ThÆ° má»¥c webroot chia sáº» vá»›i Certbot phá»¥c vá»¥ challenge HTTP-01
+├── nginx.conf                 # Cấu hình lõi Nginx (worker_processes, gzip, log format, timeouts)
+├── proxy_params               # Bộ header chuẩn đính kèm (Host, X-Real-IP, X-Forwarded-*, buffer)
+├── ssl_params                 # Chuẩn mã hóa TLS 1.2/1.3, ciphers bảo mật và security headers
+├── conf.d/
+│   ├── websocket.conf         # Mapping chuyển đổi kết nối HTTP Upgrade sang WebSocket
+│   └── default.conf           # Server blocks: Cấu hình Port 80 (Redirect & ACME) và Port 443 (Reverse Proxy)
+└── certbot/
+    ├── conf/                  # Nơi lưu trữ chứng chỉ SSL Let's Encrypt (fullchain.pem, privkey.pem)
+    └── www/                   # Thư mục webroot chia sẻ với Certbot phục vụ challenge HTTP-01
 ```
 
 ---
 
-## 4. HÆ°á»›ng Dáº«n Cáº¥u HÃ¬nh Máº¡ng Thá»±c Táº¿ (DDNS & Router)
+## 4. Hướng Dẫn Cấu Hình Mạng Thực Tế (DDNS & Router)
 
-Äá»ƒ mÃ¡y tÃ­nh bÃªn ngoÃ i Internet cÃ³ thá»ƒ truy cáº­p vÃ o mÃ¡y tÃ­nh cá»§a báº¡n qua tÃªn miá»n `hqdev.ddns.net`, báº¡n cáº§n thá»±c hiá»‡n 3 bÆ°á»›c cáº¥u hÃ¬nh máº¡ng:
+Để máy tính bên ngoài Internet có thể truy cập vào máy tính của bạn qua tên miền `hqdev.ddns.net`, bạn cần thực hiện 3 bước cấu hình mạng:
 
-### 4.1 CÃ i Ä‘áº·t No-IP Dynamic Update Client (DUC)
-IP Public cá»§a máº¡ng gia Ä‘Ã¬nh (Viettel/VNPT/FPT) sáº½ thay Ä‘á»•i má»—i khi router khá»Ÿi Ä‘á»™ng láº¡i. DUC sáº½ tá»± Ä‘á»™ng theo dÃµi IP cá»§a báº¡n vÃ  cáº­p nháº­t vÃ o domain `hqdev.ddns.net`.
-1. ÄÄƒng kÃ½ tÃ i khoáº£n táº¡i [noip.com](https://www.noip.com/) vÃ  táº¡o hostname `hqdev.ddns.net`.
-2. Táº£i pháº§n má»m **No-IP DUC** cho Windows hoáº·c Linux:
-   - Táº£i tá»«: [https://www.noip.com/download](https://www.noip.com/download)
-3. ÄÄƒng nháº­p DUC vÃ  chá»n tÃ­ch vÃ o domain `hqdev.ddns.net` Ä‘á»ƒ client tá»± Ä‘á»™ng Ä‘á»“ng bá»™ IP.
+### 4.1 Cài đặt No-IP Dynamic Update Client (DUC)
+IP Public của mạng gia đình (Viettel/VNPT/FPT) sẽ thay đổi mỗi khi router khởi động lại. DUC sẽ tự động theo dõi IP của bạn và cập nhật vào domain `hqdev.ddns.net`.
+1. Đăng ký tài khoản tại [noip.com](https://www.noip.com/) và tạo hostname `hqdev.ddns.net`.
+2. Tải phần mềm **No-IP DUC** cho Windows hoặc Linux:
+   - Tải từ: [https://www.noip.com/download](https://www.noip.com/download)
+3. Đăng nhập DUC và chọn tích vào domain `hqdev.ddns.net` để client tự động đồng bộ IP.
 
-### 4.2 Kiá»ƒm tra hiá»‡n tÆ°á»£ng CGNAT (Ráº¥t quan trá»ng táº¡i Viá»‡t Nam)
-Nhiá»u nhÃ  máº¡ng Viá»‡t Nam máº·c Ä‘á»‹nh gom khÃ¡ch hÃ ng cÃ¡ nhÃ¢n vÃ o dáº£i máº¡ng ná»™i bá»™ **CGNAT** (dáº£i `100.64.0.0/10` hoáº·c `10.x.x.x`), khiáº¿n báº¡n khÃ´ng thá»ƒ má»Ÿ port trá»±c tiáº¿p.
-- **CÃ¡ch kiá»ƒm tra:**
-  1. ÄÄƒng nháº­p vÃ o trang quáº£n trá»‹ modem router (thÆ°á»ng lÃ  `192.168.1.1`).
-  2. Xem má»¥c **WAN IP / IPv4 Address** trong pháº§n Status.
-  3. Má»Ÿ trang web [https://www.whatismyip.com](https://www.whatismyip.com).
-  - *Náº¿u 2 IP nÃ y trÃ¹ng nhau:* Báº¡n Ä‘ang cÃ³ **IP Public tháº­t**, hoÃ n toÃ n má»Ÿ port Ä‘Æ°á»£c!
-  - *Náº¿u 2 IP nÃ y khÃ¡c nhau:* Báº¡n Ä‘ang bá»‹ dÃ­nh CGNAT.
-- **CÃ¡ch giáº£i quyáº¿t CGNAT:**
-  Gá»i Ä‘iá»‡n lÃªn tá»•ng Ä‘Ã i nhÃ  máº¡ng (Viettel: `18008119`, FPT: `19006600`, VNPT: `18001166`) vÃ  nÃ³i: *"NhÃ  em Ä‘ang láº¯p camera an ninh vÃ  há»c láº­p trÃ¬nh, nhá» ká»¹ thuáº­t má»Ÿ giÃºp em IP WAN Public Ä‘á»™ng (NAT 1-1) Ä‘á»ƒ em má»Ÿ port"*. NhÃ¢n viÃªn nhÃ  máº¡ng sáº½ má»Ÿ cho báº¡n hoÃ n toÃ n miá»…n phÃ­ trong vÃ²ng 5-10 phÃºt.
+### 4.2 Kiểm tra hiện tượng CGNAT (Rất quan trọng tại Việt Nam)
+Nhiều nhà mạng Việt Nam mặc định gom khách hàng cá nhân vào dải mạng nội bộ **CGNAT** (dải `100.64.0.0/10` hoặc `10.x.x.x`), khiến bạn không thể mở port trực tiếp.
+- **Cách kiểm tra:**
+  1. Đăng nhập vào trang quản trị modem router (thường là `192.168.1.1`).
+  2. Xem mục **WAN IP / IPv4 Address** trong phần Status.
+  3. Mở trang web [https://www.whatismyip.com](https://www.whatismyip.com).
+  - *Nếu 2 IP này trùng nhau:* Bạn đang có **IP Public thật**, hoàn toàn mở port được!
+  - *Nếu 2 IP này khác nhau:* Bạn đang bị dính CGNAT.
+- **Cách giải quyết CGNAT:**
+  Gọi điện lên tổng đài nhà mạng (Viettel: `18008119`, FPT: `19006600`, VNPT: `18001166`) và nói: *"Nhà em đang lắp camera an ninh và học lập trình, nhờ kỹ thuật mở giúp em IP WAN Public động (NAT 1-1) để em mở port"*. Nhân viên nhà mạng sẽ mở cho bạn hoàn toàn miễn phí trong vòng 5-10 phút.
 
-### 4.3 Cáº¥u hÃ¬nh Port Forwarding trÃªn Router Modem
-Chuyá»ƒn hÆ°á»›ng lÆ°u lÆ°á»£ng truy cáº­p tá»« ngoÃ i Internet vÃ o Ä‘Ãºng mÃ¡y tÃ­nh cá»§a báº¡n trong máº¡ng LAN:
-1. Äáº·t IP tÄ©nh (Static IP LAN) cho mÃ¡y tÃ­nh cháº¡y dá»± Ã¡n (vÃ­ dá»¥: `192.168.1.50`).
-2. Truy cáº­p router modem (`192.168.1.1`), tÃ¬m má»¥c **Port Forwarding** hoáº·c **Virtual Server**.
-3. ThÃªm 2 báº£n ghi:
-   - **Báº£n ghi 1 (HTTP):**
+### 4.3 Cấu hình Port Forwarding trên Router Modem
+Chuyển hướng lưu lượng truy cập từ ngoài Internet vào đúng máy tính của bạn trong mạng LAN:
+1. Đặt IP tĩnh (Static IP LAN) cho máy tính chạy dự án (ví dụ: `192.168.1.50`).
+2. Truy cập router modem (`192.168.1.1`), tìm mục **Port Forwarding** hoặc **Virtual Server**.
+3. Thêm 2 bản ghi:
+   - **Bản ghi 1 (HTTP):**
      - External Port: `80`
      - Internal Port: `80`
      - Protocol: `TCP`
-     - Internal IP: `192.168.1.50` (IP mÃ¡y tÃ­nh cá»§a báº¡n)
-   - **Báº£n ghi 2 (HTTPS):**
+     - Internal IP: `192.168.1.50` (IP máy tính của bạn)
+   - **Bản ghi 2 (HTTPS):**
      - External Port: `443`
      - Internal Port: `443`
      - Protocol: `TCP`
-     - Internal IP: `192.168.1.50` (IP mÃ¡y tÃ­nh cá»§a báº¡n)
+     - Internal IP: `192.168.1.50` (IP máy tính của bạn)
 
 ---
 
-## 5. Hiá»‡n TÆ°á»£ng NAT Loopback & Cáº¥u HÃ¬nh File `hosts` Local
+## 5. Hiện Tượng NAT Loopback & Cấu Hình File `hosts` Local
 
-### 5.1 NAT Loopback (Hairpinning) lÃ  gÃ¬?
-Khi báº¡n ngá»“i trong máº¡ng Wi-Fi á»Ÿ nhÃ  vÃ  gÃµ `https://hqdev.ddns.net`:
-- TrÃ¬nh duyá»‡t phÃ¢n giáº£i `hqdev.ddns.net` ra IP Public cá»§a chÃ­nh modem router nhÃ  báº¡n.
-- Nhiá»u dÃ²ng modem giÃ¡ ráº» khÃ´ng há»— trá»£ **NAT Loopback**, router sáº½ tá»« chá»‘i káº¿t ná»‘i hoáº·c hiá»ƒn thá»‹ trang Ä‘Äƒng nháº­p admin cá»§a modem thay vÃ¬ chuyá»ƒn tiáº¿p vÃ o mÃ¡y tÃ­nh cháº¡y Docker.
+### 5.1 NAT Loopback (Hairpinning) là gì?
+Khi bạn ngồi trong mạng Wi-Fi ở nhà và gõ `https://hqdev.ddns.net`:
+- Trình duyệt phân giải `hqdev.ddns.net` ra IP Public của chính modem router nhà bạn.
+- Nhiều dòng modem giá rẻ không hỗ trợ **NAT Loopback**, router sẽ từ chối kết nối hoặc hiển thị trang đăng nhập admin của modem thay vì chuyển tiếp vào máy tính chạy Docker.
 
-### 5.2 CÃ¡ch xá»­ lÃ½ khi há»c vÃ  dev trÃªn mÃ¡y ná»™i bá»™:
-Chá»‰ cáº§n cáº¥u hÃ¬nh file `hosts` trÃªn mÃ¡y tÃ­nh Ä‘á»ƒ khi gÃµ `hqdev.ddns.net`, mÃ¡y tÃ­nh sáº½ tá»± Ä‘á»™ng trá» tháº³ng vÃ o Nginx cá»¥c bá»™ (`127.0.0.1`):
-1. Má»Ÿ **Notepad** báº±ng quyá»n Administrator (**Run as administrator**).
-2. Má»Ÿ file: `C:\Windows\System32\drivers\etc\hosts`.
-3. ThÃªm dÃ²ng sau vÃ o cuá»‘i file vÃ  lÆ°u láº¡i:
+### 5.2 Cách xử lý khi học và dev trên máy nội bộ:
+Chỉ cần cấu hình file `hosts` trên máy tính để khi gõ `hqdev.ddns.net`, máy tính sẽ tự động trỏ thẳng vào Nginx cục bộ (`127.0.0.1`):
+1. Mở **Notepad** bằng quyền Administrator (**Run as administrator**).
+2. Mở file: `C:\Windows\System32\drivers\etc\hosts`.
+3. Thêm dòng sau vào cuối file và lưu lại:
    ```text
    127.0.0.1 hqdev.ddns.net
    ```
-4. Má»Ÿ PowerShell vÃ  xÃ³a cache DNS:
+4. Mở PowerShell và xóa cache DNS:
    ```powershell
    ipconfig /flushdns
    ```
-BÃ¢y giá», má»i request Ä‘áº¿n `http://hqdev.ddns.net` hoáº·c `https://hqdev.ddns.net` tá»« mÃ¡y báº¡n sáº½ Ä‘i trá»±c tiáº¿p qua Nginx Reverse Proxy mÃ  khÃ´ng cáº§n lo láº¯ng vá» router!
+Bây giờ, mọi request đến `http://hqdev.ddns.net` hoặc `https://hqdev.ddns.net` từ máy bạn sẽ đi trực tiếp qua Nginx Reverse Proxy mà không cần lo lắng về router!
 
 ---
 
-## 6. Váº­n HÃ nh SSL Let's Encrypt
+## 6. Vận Hành SSL Let's Encrypt
 
-Há»‡ thá»‘ng Ä‘Ã£ Ä‘Æ°á»£c trang bá»‹ sáºµn **Bootstrap Certificate** (chá»©ng chá»‰ tá»± kÃ½ táº¡m thá»i) Ä‘á»ƒ Nginx cÃ³ thá»ƒ khá»Ÿi Ä‘á»™ng ngay láº­p tá»©c mÃ  khÃ´ng bá»‹ lá»—i thiáº¿u file.
+Hệ thống đã được trang bị sẵn **Bootstrap Certificate** (chứng chỉ tự ký tạm thời) để Nginx có thể khởi động ngay lập tức mà không bị lỗi thiếu file.
 
-### 6.1 Láº¥y Chá»©ng Chá»‰ SSL Tháº­t tá»« Let's Encrypt
-Khi báº¡n Ä‘Ã£ hoÃ n thÃ nh Port Forwarding trÃªn router vÃ  domain `hqdev.ddns.net` Ä‘Ã£ trá» Ä‘Ãºng vá» IP nhÃ  báº¡n:
+### 6.1 Lấy Chứng Chỉ SSL Thật từ Let's Encrypt
+Khi bạn đã hoàn thành Port Forwarding trên router và domain `hqdev.ddns.net` đã trỏ đúng về IP nhà bạn:
 
-#### CÃ¡ch 1: Cháº¡y báº±ng PowerShell trÃªn Windows:
+#### Cách 1: Chạy bằng PowerShell trên Windows:
 ```powershell
 cd D:\Source\Snapgram\Snapgram_server\infra
 .\init-letsencrypt.ps1 -Email your-email@gmail.com
 ```
 
-#### CÃ¡ch 2: Cháº¡y báº±ng Bash (Linux / WSL / Git Bash):
+#### Cách 2: Chạy bằng Bash (Linux / WSL / Git Bash):
 ```bash
 cd D:/Source/Snapgram/Snapgram_server/infra
 chmod +x init-letsencrypt.sh
 ./init-letsencrypt.sh your-email@gmail.com
 ```
 
-*LÆ°u Ã½:* Náº¿u Ä‘ang trong quÃ¡ trÃ¬nh thá»­ nghiá»‡m Ä‘Æ°á»ng truyá»n máº¡ng, báº¡n cÃ³ thá»ƒ truyá»n thÃªm tham sá»‘ Staging Ä‘á»ƒ trÃ¡nh bá»‹ Let's Encrypt khÃ³a IP táº¡m thá»i (rate limit 5 láº§n thá»­ tháº¥t báº¡i/giá»):
+*Lưu ý:* Nếu đang trong quá trình thử nghiệm đường truyền mạng, bạn có thể truyền thêm tham số Staging để tránh bị Let's Encrypt khóa IP tạm thời (rate limit 5 lần thử thất bại/giờ):
 ```powershell
 .\init-letsencrypt.ps1 -Email your-email@gmail.com -Staging
 ```
 
-### 6.2 CÆ¡ Cháº¿ Tá»± Äá»™ng Gia Háº¡n (Auto-Renewal)
-Chá»©ng chá»‰ Let's Encrypt cÃ³ thá»i háº¡n **90 ngÃ y**. Container `snapgram-certbot` trong `docker-compose.yml` Ä‘Æ°á»£c cáº¥u hÃ¬nh tá»± Ä‘á»™ng cháº¡y lá»‡nh kiá»ƒm tra gia háº¡n má»—i 12 giá»:
+### 6.2 Cơ Chế Tự Động Gia Hạn (Auto-Renewal)
+Chứng chỉ Let's Encrypt có thời hạn **90 ngày**. Container `snapgram-certbot` trong `docker-compose.yml` được cấu hình tự động chạy lệnh kiểm tra gia hạn mỗi 12 giờ:
 ```sh
 certbot renew --webroot -w /var/www/certbot --quiet
 ```
-Khi chá»©ng chá»‰ cÃ²n dÆ°á»›i 30 ngÃ y háº¿t háº¡n, Certbot sáº½ tá»± Ä‘á»™ng gia háº¡n thÃ nh cÃ´ng mÃ  khÃ´ng lÃ m giÃ¡n Ä‘oáº¡n há»‡ thá»‘ng.
+Khi chứng chỉ còn dưới 30 ngày hết hạn, Certbot sẽ tự động gia hạn thành công mà không làm gián đoạn hệ thống.
 
 ---
 
-## 7. CÃ¡c Lá»‡nh Quáº£n Trá»‹ Nginx Nhanh (Cheatsheet)
+## 7. Các Lệnh Quản Trị Nginx Nhanh (Cheatsheet)
 
-| Thao tÃ¡c | CÃ¢u lá»‡nh thá»±c thi |
+| Thao tác | Câu lệnh thực thi |
 |---|---|
-| **Kiá»ƒm tra cÃº phÃ¡p cáº¥u hÃ¬nh** | `docker exec snapgram-nginx nginx -t` |
-| **Náº¡p láº¡i cáº¥u hÃ¬nh (khÃ´ng downtime)** | `docker exec snapgram-nginx nginx -s reload` |
-| **Xem log truy cáº­p theo thá»i gian thá»±c** | `docker logs -f snapgram-nginx` |
-| **Kiá»ƒm tra tráº¡ng thÃ¡i sá»©c khá»e** | `docker exec snapgram-nginx wget -q -O- http://127.0.0.1:80/health` |
-| **Khá»Ÿi Ä‘á»™ng cá»¥m dá»‹ch vá»¥ máº¡ng** | `docker compose -f infra/docker-compose.yml up -d nginx certbot` |
-| **Khá»Ÿi Ä‘á»™ng láº¡i toÃ n bá»™ cá»¥m** | `docker compose -f infra/docker-compose.yml restart nginx` |
+| **Kiểm tra cú pháp cấu hình** | `docker exec snapgram-nginx nginx -t` |
+| **Nạp lại cấu hình (không downtime)** | `docker exec snapgram-nginx nginx -s reload` |
+| **Xem log truy cập theo thời gian thực** | `docker logs -f snapgram-nginx` |
+| **Kiểm tra trạng thái sức khỏe** | `docker exec snapgram-nginx wget -q -O- http://127.0.0.1:80/health` |
+| **Khởi động cụm dịch vụ mạng** | `docker compose -f infra/docker-compose.yml up -d nginx certbot` |
+| **Khởi động lại toàn bộ cụm** | `docker compose -f infra/docker-compose.yml restart nginx` |
 
+---
+
+**Để lần sau không bị lại:**
+- Khi đọc file bằng PowerShell, thêm `-Encoding UTF8`: `Get-Content file.md -Encoding UTF8`.
+- Nếu file trên ổ đĩa đã bị ghi sai, dùng Python để sửa:
+  ```python
+  s = open("file.md", encoding="utf-8").read()
+  open("file_fixed.md", "w", encoding="utf-8").write(s.encode("cp1252").decode("utf-8"))
+  ```
+- Trong VS Code, bấm vào encoding ở thanh trạng thái dưới cùng, chọn *Reopen with Encoding → UTF-8*.
