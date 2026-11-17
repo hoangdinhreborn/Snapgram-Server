@@ -12,6 +12,7 @@
 docker-data/
 
 # SSL certificates and ACME challenges
+infra/nginx/certbot/conf/accounts/
 infra/nginx/certbot/conf/archive/
 infra/nginx/certbot/conf/live/
 infra/nginx/certbot/conf/keys/

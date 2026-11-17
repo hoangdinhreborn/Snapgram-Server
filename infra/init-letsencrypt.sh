@@ -3,20 +3,20 @@ set -e
 
 # ==============================================================================
 # SNAPGRAM LETSENCRYPT INITIALIZATION SCRIPT (Bash / Linux / WSL)
-# Tự động hóa xin cấp chứng chỉ SSL thật từ Let's Encrypt cho maintaindev.id.vn
+# Tự động hóa xin cấp chứng chỉ SSL thật từ Let's Encrypt cho hqdev.ddns.net
 # ==============================================================================
 
-DOMAIN="maintaindev.id.vn"
+DOMAIN="hqdev.ddns.net"
 RSA_KEY_SIZE=4096
 CERTBOT_DIR="./nginx/certbot"
-EMAIL="${1:-noreply@maintaindev.id.vn}" # Truyền email qua tham số hoặc dùng mặc định
+EMAIL="${1:-noreply@hqdev.ddns.net}" # Truyền email qua tham số hoặc dùng mặc định
 STAGING="${2:-0}"                # 1 = Staging (thử nghiệm, tránh rate limit), 0 = Production thật
 
 echo "=========================================================="
 echo "   Snapgram Let's Encrypt SSL Initializer (Domain: $DOMAIN)"
 echo "=========================================================="
 
-if [ "$EMAIL" = "noreply@maintaindev.id.vn" ]; then
+if [ "$EMAIL" = "noreply@hqdev.ddns.net" ]; then
     echo "Cảnh báo: Bạn đang dùng email mặc định ($EMAIL)."
     echo "   Khuyên dùng: ./init-letsencrypt.sh your-email@gmail.com"
 fi

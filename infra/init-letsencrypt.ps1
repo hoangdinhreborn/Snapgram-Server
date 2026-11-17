@@ -1,14 +1,14 @@
 ﻿# ==============================================================================
 # SNAPGRAM LETSENCRYPT INITIALIZATION SCRIPT (Windows PowerShell)
-# Tự động hóa xin cấp chứng chỉ SSL thật từ Let's Encrypt cho maintaindev.id.vn
+# Tự động hóa xin cấp chứng chỉ SSL thật từ Let's Encrypt cho hqdev.ddns.net
 # ==============================================================================
 param (
-    [string]$Email = "noreply@maintaindev.id.vn",
+    [string]$Email = "noreply@hqdev.ddns.net",
     [switch]$Staging = $false
 )
 
 $ErrorActionPreference = "Stop"
-$Domain = "maintaindev.id.vn"
+$Domain = "hqdev.ddns.net"
 $RsaKeySize = 4096
 $CertbotDir = "./nginx/certbot"
 
@@ -16,7 +16,7 @@ Write-Host "==========================================================" -Foregro
 Write-Host "   Snapgram Let's Encrypt SSL Initializer (Domain: $Domain)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-if ($Email -eq "noreply@maintaindev.id.vn") {
+if ($Email -eq "noreply@hqdev.ddns.net") {
     Write-Host "Cảnh báo: Bạn đang dùng email mặc định ($Email)." -ForegroundColor Yellow
     Write-Host "   Khuyên dùng: .\init-letsencrypt.ps1 -Email your-email@gmail.com" -ForegroundColor Yellow
 }
@@ -31,7 +31,7 @@ if (-not (Test-Path "$CertbotDir/www")) {
 }
 if (-not (Test-Path "$LiveDir/fullchain.pem")) {
     Write-Host "Tạo chứng chỉ bootstrap tạm thời cho Nginx khởi động..." -ForegroundColor Yellow
-    docker run --rm --entrypoint sh -v "${PWD}/$LiveDir:/out" certbot/certbot:latest -c `
+    docker run --rm --entrypoint sh -v "${PWD}/${LiveDir}:/out" certbot/certbot:latest -c `
       "openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout /out/privkey.pem -out /out/fullchain.pem -subj '/CN=$Domain'"
 }
 
