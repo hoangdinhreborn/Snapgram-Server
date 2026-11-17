@@ -17,6 +17,11 @@ Write-Host "==========================================================" -Foregro
 Write-Host "   Snapgram Let's Encrypt SSL Initializer (Domain: $Domain)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
+# Dò tìm IP mạng LAN của máy tính hiện tại
+$LocalIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254*" -and $_.IPAddress -notlike "172.*" } | Select-Object -ExpandProperty IPAddress -First 1)
+if (-not $LocalIp) { $LocalIp = "192.168.10.26" }
+Write-Host "🌐 IP mạng LAN máy tính: $LocalIp (Cần Port Forward cổng 80 & 443 về IP này trên Router)" -ForegroundColor Magenta
+
 # Xử lý tham số email cho Certbot (Let's Encrypt không yêu cầu mail server)
 if ($NoEmail -or [string]::IsNullOrWhiteSpace($Email)) {
     $EmailArg = "--register-unsafely-without-email"
@@ -59,6 +64,24 @@ $certbotArgs = @(
     "certbot"
 )
 & docker @certbotArgs
+
+# Kiểm tra kết quả Certbot - Fail-fast nếu thất bại
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "==========================================================" -ForegroundColor Red
+    Write-Host "❌ THẤT BẠI: Quá trình xin cấp chứng chỉ Let's Encrypt không thành công!" -ForegroundColor Red
+    Write-Host "==========================================================" -ForegroundColor Red
+    Write-Host "Nguyên nhân phổ biến và cách khắc phục:" -ForegroundColor Yellow
+    Write-Host "  1. Modem/Router chưa cấu hình Port Forwarding cổng 80 & 443 về máy này (IP LAN: $LocalIp)." -ForegroundColor Yellow
+    Write-Host "     -> Đăng nhập vào Router (http://192.168.10.1) -> Port Forwarding / Virtual Server -> trỏ port 80 & 443 TCP về $LocalIp." -ForegroundColor Yellow
+    Write-Host "  2. Tên miền '$Domain' chưa cập nhật đúng Public IP hiện tại trên No-IP." -ForegroundColor Yellow
+    Write-Host "  3. Tường lửa Windows Defender đang chặn kết nối đến cổng 80 hoặc 443." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "💡 Mẹo: Hãy thử nghiệm với tham số -Staging để tránh bị Let's Encrypt rate-limit do thử lỗi nhiều lần:" -ForegroundColor Cyan
+    Write-Host "   .\init-letsencrypt.ps1 -Staging" -ForegroundColor Cyan
+    Write-Host "==========================================================" -ForegroundColor Red
+    exit 1
+}
 
 # 5. Reload Nginx để nạp chứng chỉ mới
 Write-Host "[3/4] Nạp chứng chỉ mới vào Nginx..." -ForegroundColor Green

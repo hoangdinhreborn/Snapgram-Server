@@ -50,6 +50,7 @@ fi
 
 # 4. Yêu cầu cấp chứng chỉ Let's Encrypt qua Webroot Challenge
 echo "[2/4] Gửi yêu cầu xác thực ACME HTTP-01 tới Let's Encrypt..."
+set +e
 docker compose run --rm --entrypoint "\
   certbot certonly --webroot -w /var/www/certbot \
     $STAGING_ARG \
@@ -59,6 +60,25 @@ docker compose run --rm --entrypoint "\
     --agree-tos \
     --force-renewal \
     --non-interactive" certbot
+CERTBOT_EXIT=$?
+set -e
+
+if [ $CERTBOT_EXIT -ne 0 ]; then
+  echo ""
+  echo "=========================================================="
+  echo "❌ THẤT BẠI: Quá trình xin cấp chứng chỉ Let's Encrypt không thành công!"
+  echo "=========================================================="
+  echo "Nguyên nhân phổ biến và cách khắc phục:"
+  echo "  1. Modem/Router chưa cấu hình Port Forwarding cổng 80 & 443 về máy này."
+  echo "     -> Đăng nhập vào Router (http://192.168.10.1) -> Port Forwarding -> trỏ port 80 & 443 TCP về IP máy tính."
+  echo "  2. Tên miền '$DOMAIN' chưa cập nhật đúng Public IP hiện tại trên No-IP."
+  echo "  3. Tường lửa đang chặn cổng 80 hoặc 443."
+  echo ""
+  echo "💡 Mẹo: Hãy thử nghiệm với chế độ Staging (tham số thứ 2 là 1) để tránh bị rate limit:"
+  echo "   ./init-letsencrypt.sh your-email@gmail.com 1"
+  echo "=========================================================="
+  exit 1
+fi
 
 # 5. Reload Nginx để nạp chứng chỉ mới
 echo "[3/4] Nạp chứng chỉ mới vào Nginx..."
