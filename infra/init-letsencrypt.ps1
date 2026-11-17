@@ -3,7 +3,8 @@
 # Tự động hóa xin cấp chứng chỉ SSL thật từ Let's Encrypt cho hqdev.ddns.net
 # ==============================================================================
 param (
-    [string]$Email = "noreply@hqdev.ddns.net",
+    [string]$Email = "",
+    [switch]$NoEmail = $false,
     [switch]$Staging = $false
 )
 
@@ -16,9 +17,13 @@ Write-Host "==========================================================" -Foregro
 Write-Host "   Snapgram Let's Encrypt SSL Initializer (Domain: $Domain)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-if ($Email -eq "noreply@hqdev.ddns.net") {
-    Write-Host "Cảnh báo: Bạn đang dùng email mặc định ($Email)." -ForegroundColor Yellow
-    Write-Host "   Khuyên dùng: .\init-letsencrypt.ps1 -Email your-email@gmail.com" -ForegroundColor Yellow
+# Xử lý tham số email cho Certbot (Let's Encrypt không yêu cầu mail server)
+if ($NoEmail -or [string]::IsNullOrWhiteSpace($Email)) {
+    $EmailArg = "--register-unsafely-without-email"
+    Write-Host "ℹ️  Không dùng email nhận thông báo từ Let's Encrypt (--register-unsafely-without-email)." -ForegroundColor Yellow
+} else {
+    $EmailArg = "--email $Email"
+    Write-Host "📧 Email nhận cảnh báo gia hạn Let's Encrypt: $Email" -ForegroundColor Cyan
 }
 
 # 1. Đảm bảo thư mục tồn tại & tạo bootstrap cert nếu chưa có
@@ -50,7 +55,7 @@ if ($Staging) {
 Write-Host "[2/4] Gửi yêu cầu xác thực ACME HTTP-01 tới Let's Encrypt..." -ForegroundColor Green
 $certbotArgs = @(
     "compose", "run", "--rm", "--entrypoint",
-    "certbot certonly --webroot -w /var/www/certbot $StagingArg --email $Email -d $Domain --rsa-key-size $RsaKeySize --agree-tos --force-renewal --non-interactive",
+    "certbot certonly --webroot -w /var/www/certbot $StagingArg $EmailArg -d $Domain --rsa-key-size $RsaKeySize --agree-tos --force-renewal --non-interactive",
     "certbot"
 )
 & docker @certbotArgs
