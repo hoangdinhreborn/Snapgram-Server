@@ -4,8 +4,6 @@ services:
     image: apache/kafka:4.3.1
     container_name: snapgram-kafka
     restart: unless-stopped
-    ports:
-      - "9092:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -53,7 +51,7 @@ services:
     container_name: snapgram-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -68,7 +66,7 @@ services:
     container_name: snapgram-postgres-auth
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment: &pg-env
       POSTGRES_USER: snapgram
       POSTGRES_PASSWORD: snapgram
@@ -85,7 +83,7 @@ services:
     container_name: snapgram-postgres-chat
     restart: unless-stopped
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     environment:
       <<: *pg-env
     volumes:
@@ -101,7 +99,7 @@ services:
     container_name: snapgram-postgres-content
     restart: unless-stopped
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:5432"
     environment:
       <<: *pg-env
     volumes:
@@ -117,7 +115,7 @@ services:
     container_name: snapgram-postgres-recommender
     restart: unless-stopped
     ports:
-      - "5436:5432"
+      - "127.0.0.1:5436:5432"
     environment:
       <<: *pg-env
     volumes:
@@ -133,7 +131,7 @@ services:
     container_name: snapgram-postgres-media
     restart: unless-stopped
     ports:
-      - "5437:5432"
+      - "127.0.0.1:5437:5432"
     environment:
       <<: *pg-env
     volumes:
@@ -149,7 +147,7 @@ services:
     container_name: snapgram-postgres-notification
     restart: unless-stopped
     ports:
-      - "5438:5432"
+      - "127.0.0.1:5438:5432"
     environment:
       <<: *pg-env
     volumes:
@@ -165,7 +163,7 @@ services:
     container_name: snapgram-postgres-payment
     restart: unless-stopped
     ports:
-      - "5439:5432"
+      - "127.0.0.1:5439:5432"
     environment:
       <<: *pg-env
     volumes:
@@ -182,8 +180,8 @@ services:
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     env_file:
       - ../.env
     environment:
@@ -207,7 +205,7 @@ services:
     container_name: snapgram-kafka-ui
     restart: unless-stopped
     ports:
-      - "8089:8080"
+      - "127.0.0.1:8089:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: snapgram
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
@@ -224,8 +222,6 @@ services:
     image: snapgram/auth-service:latest
     container_name: snapgram-auth-service
     restart: unless-stopped
-    ports:
-      - "8081:8081"
     env_file:
       - ../.env
     environment:
@@ -262,8 +258,6 @@ services:
     image: snapgram/chat-service:latest
     container_name: snapgram-chat-service
     restart: unless-stopped
-    ports:
-      - "8083:8083"
     env_file:
       - ../.env
     environment:
@@ -298,8 +292,6 @@ services:
     image: snapgram/content-service:latest
     container_name: snapgram-content-service
     restart: unless-stopped
-    ports:
-      - "8084:8084"
     env_file:
       - ../.env
     environment:
@@ -338,8 +330,6 @@ services:
     image: snapgram/media-service:latest
     container_name: snapgram-media-service
     restart: unless-stopped
-    ports:
-      - "8085:8085"
     env_file:
       - ../.env
     environment:
@@ -377,8 +367,6 @@ services:
     image: snapgram/notification-service:latest
     container_name: snapgram-notification-service
     restart: unless-stopped
-    ports:
-      - "8086:8086"
     env_file:
       - ../.env
     environment:
@@ -444,7 +432,7 @@ services:
     container_name: snapgram-api-gateway
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     env_file:
       - ../.env
     environment:
@@ -481,8 +469,6 @@ services:
     image: snapgram/payment-service:latest
     container_name: snapgram-payment-service
     restart: unless-stopped
-    ports:
-      - "8087:8087"
     env_file:
       - ../.env
     environment:
