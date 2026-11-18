@@ -11,7 +11,6 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,8 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * WebSocket cho chat tại /ws/chat.
  *
- * Gateway bỏ qua kiểm tra JWT cho path /ws/ (trình duyệt không set được header
- * handshake), nên userId lấy từ query param: /ws/chat?userId=<uuid>.
+ * Chỉ chấp nhận kết nối đã được xác thực từ API Gateway,
+ * nhận diện người dùng qua header nội bộ X-User-Id (và X-Username).
  */
 @Component
 @Slf4j
@@ -41,14 +40,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         UUID userId = parseUserId(session);
         if (userId == null) {
-            log.debug("Đóng WS chat vì thiếu userId: {}", session.getUri());
-            session.close(CloseStatus.POLICY_VIOLATION.withReason("Missing userId"));
+            log.warn("Đóng WS chat vì thiếu hoặc sai header X-User-Id: uri={}", session.getUri());
+            session.close(CloseStatus.POLICY_VIOLATION.withReason("Unauthorized: Missing or invalid X-User-Id"));
             return;
         }
 
-        String username = parseQueryParam(session, "username");
+        String username = session.getHandshakeHeaders().getFirst("X-Username");
         session.getAttributes().put(ATTR_USER_ID, userId);
-        if (username != null) {
+        if (username != null && !username.isBlank()) {
             session.getAttributes().put(ATTR_USERNAME, username);
         }
 
@@ -107,27 +106,13 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     private UUID parseUserId(WebSocketSession session) {
-        String raw = parseQueryParam(session, "userId");
+        String raw = session.getHandshakeHeaders().getFirst("X-User-Id");
         if (raw == null || raw.isBlank()) return null;
         try {
             return UUID.fromString(raw.trim());
         } catch (IllegalArgumentException e) {
+            log.warn("Invalid X-User-Id header format: {}", raw);
             return null;
         }
-    }
-
-    private String parseQueryParam(WebSocketSession session, String name) {
-        URI uri = session.getUri();
-        if (uri == null || uri.getQuery() == null) return null;
-
-        for (String part : uri.getQuery().split("&")) {
-            int idx = part.indexOf('=');
-            if (idx <= 0) continue;
-            String key = part.substring(0, idx);
-            if (!name.equals(key)) continue;
-            String value = part.substring(idx + 1);
-            return java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8);
-        }
-        return null;
     }
 }

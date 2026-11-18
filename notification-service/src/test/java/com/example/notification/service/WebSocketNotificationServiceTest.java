@@ -32,7 +32,7 @@ class WebSocketNotificationServiceTest {
     }
 
     @Test
-    void shouldReportActiveSessionForOpenWebSocket() {
+    void shouldReportActiveSessionForOpenWebSocket() throws Exception {
         UUID userId = UUID.randomUUID();
         WebSocketSession session = sessionFor(userId, true);
 
@@ -43,7 +43,7 @@ class WebSocketNotificationServiceTest {
     }
 
     @Test
-    void shouldNotReportActiveSessionWhenSessionIsClosed() {
+    void shouldNotReportActiveSessionWhenSessionIsClosed() throws Exception {
         UUID userId = UUID.randomUUID();
         WebSocketSession session = sessionFor(userId, true);
 
@@ -59,7 +59,31 @@ class WebSocketNotificationServiceTest {
     }
 
     @Test
-    void shouldRefreshPresenceTtlOnlyForUsersWithOpenSessions() {
+    void shouldCloseSessionWhenUserIdHeaderIsMissing() throws Exception {
+        WebSocketSession session = mock(WebSocketSession.class);
+        when(session.getHandshakeHeaders()).thenReturn(new HttpHeaders());
+
+        webSocketNotificationService.afterConnectionEstablished(session);
+
+        verify(session).close(argThat(status -> status.getCode() == org.springframework.web.socket.CloseStatus.POLICY_VIOLATION.getCode()));
+        verifyNoInteractions(valueOperations);
+    }
+
+    @Test
+    void shouldCloseSessionWhenUserIdHeaderIsInvalid() throws Exception {
+        WebSocketSession session = mock(WebSocketSession.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("X-User-Id", "not-a-uuid");
+        when(session.getHandshakeHeaders()).thenReturn(headers);
+
+        webSocketNotificationService.afterConnectionEstablished(session);
+
+        verify(session).close(argThat(status -> status.getCode() == org.springframework.web.socket.CloseStatus.POLICY_VIOLATION.getCode()));
+        verifyNoInteractions(valueOperations);
+    }
+
+    @Test
+    void shouldRefreshPresenceTtlOnlyForUsersWithOpenSessions() throws Exception {
         UUID connectedUser = UUID.randomUUID();
         UUID disconnectedUser = UUID.randomUUID();
         WebSocketSession openSession = sessionFor(connectedUser, true);

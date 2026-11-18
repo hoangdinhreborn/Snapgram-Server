@@ -325,4 +325,103 @@ class GatewayErrorResponseTest {
 
         filter.filter(exchange, filterChain).block();
     }
+
+    @Test
+    @DisplayName("JwtAuthenticationFilter blocks missing token on WebSocket route /ws/chat with 401")
+    void jwtFilter_MissingToken_WebSocketRoute_Returns401() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(authWebClient, jwtPayloadUtil, objectMapper);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/ws/chat").build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        filter.filter(exchange, filterChain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("JwtAuthenticationFilter accepts token in query param ?token=... for WebSocket route and injects headers")
+    @SuppressWarnings("unchecked")
+    void jwtFilter_ValidTokenInQueryParam_WebSocketRoute_InjectsHeaders() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(authWebClient, jwtPayloadUtil, objectMapper);
+
+        WebClient.RequestBodyUriSpec requestBodyUriSpec = mock(WebClient.RequestBodyUriSpec.class);
+        WebClient.RequestBodySpec requestBodySpec = mock(WebClient.RequestBodySpec.class);
+        WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
+
+        when(authWebClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri("/api/auth/verify")).thenReturn(requestBodySpec);
+        when(requestBodySpec.header(eq(HttpHeaders.AUTHORIZATION), eq("Bearer ws-token-xyz"))).thenReturn(requestBodySpec);
+        when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(Boolean.class)).thenReturn(Mono.just(true));
+
+        Map<String, Object> claims = Map.of("sub", "user-ws-1");
+        when(jwtPayloadUtil.extractPayload("ws-token-xyz")).thenReturn(claims);
+        when(jwtPayloadUtil.getUserId(claims)).thenReturn("user-ws-1");
+        when(jwtPayloadUtil.getUsername(claims)).thenReturn("alice_ws");
+        when(jwtPayloadUtil.getRolesAsString(claims)).thenReturn("ROLE_USER");
+        when(jwtPayloadUtil.getPermissionsAsString(claims)).thenReturn("READ");
+
+        when(filterChain.filter(any())).thenAnswer(invocation -> {
+            org.springframework.web.server.ServerWebExchange passedExchange = invocation.getArgument(0);
+            HttpHeaders headers = passedExchange.getRequest().getHeaders();
+            assertThat(headers.getFirst("X-User-Id")).isEqualTo("user-ws-1");
+            assertThat(headers.getFirst("X-Username")).isEqualTo("alice_ws");
+            assertThat(headers.getFirst("X-User-Roles")).isEqualTo("ROLE_USER");
+            return Mono.empty();
+        });
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/ws/chat?token=ws-token-xyz").build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        filter.filter(exchange, filterChain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("JwtAuthenticationFilter allows /actuator/health and /actuator/info publicly")
+    void jwtFilter_ActuatorHealthAndInfo_ArePublic() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(authWebClient, jwtPayloadUtil, objectMapper);
+
+        when(filterChain.filter(any())).thenReturn(Mono.empty());
+
+        MockServerHttpRequest healthReq = MockServerHttpRequest.get("/actuator/health").build();
+        MockServerWebExchange healthEx = MockServerWebExchange.from(healthReq);
+        filter.filter(healthEx, filterChain).block();
+        assertThat(healthEx.getResponse().getStatusCode()).isNull();
+
+        MockServerHttpRequest infoReq = MockServerHttpRequest.get("/actuator/info").build();
+        MockServerWebExchange infoEx = MockServerWebExchange.from(infoReq);
+        filter.filter(infoEx, filterChain).block();
+        assertThat(infoEx.getResponse().getStatusCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("JwtAuthenticationFilter blocks unauthenticated access to /actuator/metrics with 401")
+    void jwtFilter_ActuatorMetrics_RequiresAuth() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(authWebClient, jwtPayloadUtil, objectMapper);
+
+        MockServerHttpRequest metricsReq = MockServerHttpRequest.get("/actuator/metrics").build();
+        MockServerWebExchange metricsEx = MockServerWebExchange.from(metricsReq);
+        filter.filter(metricsEx, filterChain).block();
+
+        assertThat(metricsEx.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("HeaderSanitizationFilter blocks requests to /internal/ endpoints with 403 Forbidden")
+    void headerSanitizationFilter_BlocksInternalPath() {
+        HeaderSanitizationFilter filter = new HeaderSanitizationFilter();
+
+        MockServerHttpRequest req1 = MockServerHttpRequest.get("/api/content/internal/posts").build();
+        MockServerWebExchange ex1 = MockServerWebExchange.from(req1);
+        filter.filter(ex1, filterChain).block();
+        assertThat(ex1.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        MockServerHttpRequest req2 = MockServerHttpRequest.get("/api/users/internal").build();
+        MockServerWebExchange ex2 = MockServerWebExchange.from(req2);
+        filter.filter(ex2, filterChain).block();
+        assertThat(ex2.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
 }

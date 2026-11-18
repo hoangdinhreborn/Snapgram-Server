@@ -33,8 +33,13 @@ public class WebSocketNotificationService extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         UUID userId = resolveUserId(session);
+        if (userId == null) {
+            log.warn("Closing WS notification connection due to missing/invalid X-User-Id: uri={}", session.getUri());
+            session.close(CloseStatus.POLICY_VIOLATION.withReason("Unauthorized: Missing or invalid X-User-Id"));
+            return;
+        }
         sessionsByUser.computeIfAbsent(userId, key -> ConcurrentHashMap.newKeySet()).add(session);
         markOnline(userId);
         log.info("WebSocket connected for user {}", userId);
@@ -43,6 +48,9 @@ public class WebSocketNotificationService extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         UUID userId = resolveUserId(session);
+        if (userId == null) {
+            return;
+        }
         Set<WebSocketSession> sessions = sessionsByUser.get(userId);
         if (sessions != null) {
             sessions.remove(session);
@@ -117,24 +125,15 @@ public class WebSocketNotificationService extends TextWebSocketHandler {
     }
 
     private UUID resolveUserId(WebSocketSession session) {
-        // Preferred: header injected by api-gateway after JWT verification
         String userId = session.getHandshakeHeaders().getFirst("X-User-Id");
         if (userId == null || userId.isBlank()) {
-            // Fallback: browsers cannot set custom headers on WebSocket handshakes
-            String query = session.getUri() != null ? session.getUri().getQuery() : null;
-            if (query != null) {
-                for (String part : query.split("&")) {
-                    int eq = part.indexOf('=');
-                    if (eq > 0 && "userId".equals(part.substring(0, eq))) {
-                        userId = part.substring(eq + 1);
-                        break;
-                    }
-                }
-            }
+            return null;
         }
-        if (userId == null || userId.isBlank()) {
-            throw new IllegalArgumentException("Missing X-User-Id header for websocket connection");
+        try {
+            return UUID.fromString(userId.trim());
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid X-User-Id header format for notification WS: {}", userId);
+            return null;
         }
-        return UUID.fromString(userId);
     }
 }

@@ -95,13 +95,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        // WebSocket handshakes from browsers cannot carry Authorization headers.
-        // The notification handler resolves the user from the X-User-Id / ?userId= handshake data.
-        if (path.startsWith("/ws/")) {
-            return chain.filter(exchange);
-        }
-
-        // Lấy token từ Authorization header hoặc Cookie
+        // Lấy token từ Authorization header, Cookie hoặc Query parameter (WebSocket)
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         String token = null;
 
@@ -123,6 +117,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             if (cookie != null) {
                 token = cookie.getValue();
             }
+        }
+
+        // Fallback cho WebSocket handshake từ browsers: đọc token từ query param ?token=...
+        if (token == null || token.isBlank()) {
+            token = exchange.getRequest().getQueryParams().getFirst("token");
         }
 
         if (token == null || token.isBlank()) {
@@ -212,8 +211,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return true;
             }
         }
-        // Prefix match cho actuator
-        return path.startsWith("/actuator");
+        // Actuator: chỉ cho phép health và info công khai (liveness/readiness probe)
+        if (path.equals("/actuator/health") || path.startsWith("/actuator/health/") || path.equals("/actuator/info")) {
+            return true;
+        }
+        return false;
     }
 
     private boolean isOptionalAuthPath(String method, String path) {
