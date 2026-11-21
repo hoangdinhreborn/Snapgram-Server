@@ -8,6 +8,7 @@ app:
     initial-password: ${ADMIN_INITIAL_PASSWORD:}
   cookie:
     secure: ${COOKIE_SECURE:false}
+    domain: ${COOKIE_DOMAIN:}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     limit: ${AUTH_RATE_LIMIT:5000}

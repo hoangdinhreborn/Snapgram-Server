@@ -336,7 +336,7 @@ function Assert-PhaseSuccess {
 # ─────────────────────────────────────────────────────────────────────────────
 
 function Load-State {
-    if (Test-Path $StateFile -and (-not $Force)) {
+    if ((Test-Path $StateFile) -and (-not $Force)) {
         try {
             $json = Get-Content -Raw $StateFile -Encoding UTF8
             return ($json | ConvertFrom-Json)
@@ -443,19 +443,45 @@ function Prepare-Assets {
         for ($i = 1; $i -le 12; $i++) {
             $vidPath = Join-Path $VideoDir "video_$i.mp4"
             if (-not (Test-Path $vidPath)) {
-                $freq = 300 + ($i * 50)
-                # Tạo video dọc 1080x1920 8s, h264/aac, dung lượng ~1.8MB
-                $ffArgs = @(
-                    "-y",
-                    "-f", "lavfi", "-i", "testsrc2=size=1080x1920:rate=30",
-                    "-f", "lavfi", "-i", "sine=frequency=$($freq):sample_rate=44100",
-                    "-t", "8",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-b:v", "1500k",
-                    "-c:a", "aac", "-b:a", "128k",
-                    "-shortest",
-                    $vidPath
-                )
-                & ffmpeg @ffArgs *>$null
+                $img1 = Join-Path $StoryImgDir "story_$i.jpg"
+                if (-not (Test-Path $img1)) { $img1 = Join-Path $PostImgDir "post_$i.jpg" }
+                $img2Idx = (($i * 3 - 1) % 60) + 1
+                $img2 = Join-Path $PostImgDir "post_$img2Idx.jpg"
+                if (-not (Test-Path $img2)) { $img2 = $img1 }
+
+                if ((Test-Path $img1) -and (Test-Path $img2)) {
+                    # Tạo video dọc Ken Burns 1080x1920 8s từ ảnh thật, h264 Main/aac + faststart
+                    $filter = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p,zoompan=z='min(zoom+0.0012,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=135:s=1080x1920:fps=30[v0];[1:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p,zoompan=z='1.15-0.001*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=135:s=1080x1920:fps=30[v1];[v0][v1]xfade=transition=fade:duration=1:offset=3.5,format=yuv420p[v]"
+                    $ffArgs = @(
+                        "-y", "-loglevel", "error",
+                        "-i", $img1,
+                        "-i", $img2,
+                        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+                        "-filter_complex", $filter,
+                        "-map", "[v]", "-map", "2:a",
+                        "-t", "8",
+                        "-c:v", "libx264", "-profile:v", "main", "-level", "4.0", "-pix_fmt", "yuv420p", "-b:v", "1500k",
+                        "-c:a", "aac", "-b:a", "128k",
+                        "-movflags", "+faststart",
+                        $vidPath
+                    )
+                } else {
+                    $ffArgs = @(
+                        "-y", "-loglevel", "error",
+                        "-f", "lavfi", "-i", "color=c=0x111827:s=1080x1920:r=30",
+                        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+                        "-t", "8",
+                        "-c:v", "libx264", "-profile:v", "main", "-level", "4.0", "-pix_fmt", "yuv420p", "-b:v", "1500k",
+                        "-c:a", "aac", "-b:a", "128k",
+                        "-movflags", "+faststart",
+                        "-shortest",
+                        $vidPath
+                    )
+                }
+                $prevEAP = $ErrorActionPreference
+                $ErrorActionPreference = "Continue"
+                & ffmpeg @ffArgs 2>$null | Out-Null
+                $ErrorActionPreference = $prevEAP
             }
             if (Test-Path $vidPath) { $vidCreated++ }
         }
@@ -691,22 +717,16 @@ UPDATE auth_users
 SET email_verified = true 
 WHERE email LIKE '%@demo.local';
 
--- 2. Nâng tài khoản 'demo' lên ADMIN trong auth_users và auth_user_roles
+-- 2. Giữ tài khoản 'demo' ở role USER để hiển thị công khai trên feed/explore/profile,
+--    đồng thời cấp tick xanh (verified badge)
 UPDATE auth_users 
-SET role = 'ADMIN' 
-WHERE username = 'demo';
-
-INSERT INTO auth_user_roles (id, user_id, role, created_at)
-SELECT gen_random_uuid(), id, 'ADMIN', NOW()
-FROM auth_users 
-WHERE username = 'demo'
-ON CONFLICT (user_id, role) DO NOTHING;
-
--- 3. Cấp tick xanh (verified badge) cho tài khoản 'demo'
-UPDATE auth_users 
-SET is_verified = true, 
+SET role = 'USER',
+    is_verified = true, 
     verified_until = NOW() + INTERVAL '365 days'
 WHERE username = 'demo';
+
+DELETE FROM auth_user_roles
+WHERE user_id = (SELECT id FROM auth_users WHERE username = 'demo');
 "@
 
     Write-Host "  -> Đang thực thi SQL trên container '$container'..." -ForegroundColor Cyan
@@ -1270,10 +1290,17 @@ function Step-TriggerSpringBatchJobs {
         return
     }
 
-    $demoUser = $Users | Where-Object { $_.Username -eq "demo" } | Select-Object -First 1
-    if (-not $demoUser) {
-        Write-WarnMsg "Không tìm thấy tài khoản 'demo' để kích hoạt Batch. Bỏ qua."
-        $Summary.SkippedItems += "Kích hoạt Batch (thiếu tài khoản admin demo)"
+    $adminEmail = if ($env:ADMIN_INITIAL_EMAIL) { $env:ADMIN_INITIAL_EMAIL } else { "admin@snapgram.com" }
+    $adminPassword = if ($env:ADMIN_INITIAL_PASSWORD) { $env:ADMIN_INITIAL_PASSWORD } else { "admin123" }
+    $adminToken = $null
+    try {
+        $adminLoginRes = Invoke-SnapgramApi -Url "$BaseUrl/api/auth/admin/login" -Method "POST" -Body @{ email = $adminEmail; password = $adminPassword }
+        $adminToken = $adminLoginRes.accessToken
+    } catch {
+        Write-WarnMsg "Đăng nhập tài khoản ADMIN ($adminEmail) để chạy Batch thất bại: $($_.Exception.Message)"
+    }
+    if (-not $adminToken) {
+        $Summary.SkippedItems += "Kích hoạt Batch (không lấy được token ADMIN)"
         return
     }
 
@@ -1282,7 +1309,7 @@ function Step-TriggerSpringBatchJobs {
         Write-Host "  -> Đang kích hoạt job: $jName..." -ForegroundColor Cyan
         try {
             $runUrl = $Endpoints.RunBatchJob -replace '\{jobName\}', $jName
-            $runRes = Invoke-SnapgramApi -Url $runUrl -Method "POST" -Token $demoUser.AccessToken
+            $runRes = Invoke-SnapgramApi -Url $runUrl -Method "POST" -Token $adminToken
             $executionId = $runRes.jobExecutionId
             Write-Host "     Job đã chạy với ExecutionId=$executionId. Đang chờ hoàn tất (COMPLETED)..." -ForegroundColor Gray
 
@@ -1292,7 +1319,7 @@ function Step-TriggerSpringBatchJobs {
                 Start-Sleep -Seconds 2
                 try {
                     $pollUrl = $Endpoints.GetBatchExecution -replace '\{id\}', $executionId
-                    $statusRes = Invoke-SnapgramApi -Url $pollUrl -Method "GET" -Token $demoUser.AccessToken
+                    $statusRes = Invoke-SnapgramApi -Url $pollUrl -Method "GET" -Token $adminToken
                     if ($statusRes.status -eq "COMPLETED") {
                         Write-Success "Job $jName hoàn thành xuất sắc! (Thời gian: $($statusRes.durationMs)ms)"
                         $completed = $true
@@ -1465,7 +1492,8 @@ function Main {
     Write-Host "  2. Đăng nhập tài khoản demo:" -ForegroundColor Cyan
     Write-Host "     - Email:    demo@demo.local" -ForegroundColor Green
     Write-Host "     - Password: $DemoPassword" -ForegroundColor Green
-    Write-Host "     - Quyền:    ADMIN (kèm Verified Blue Tick)" -ForegroundColor Green
+    Write-Host "     - Quyền:    USER (kèm Verified Blue Tick)" -ForegroundColor Green
+    Write-Host "     - Admin:    admin@snapgram.com (dùng cho Admin Portal)" -ForegroundColor Gray
     Write-Host "========================================================================`n" -ForegroundColor Yellow
 }
 

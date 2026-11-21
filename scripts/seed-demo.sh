@@ -315,9 +315,20 @@ if command -v ffmpeg &>/dev/null; then
   for i in $(seq 1 12); do
     vid_path="$VIDEO_DIR/video_$i.mp4"
     if [ ! -f "$vid_path" ]; then
-      freq=$((300 + i * 50))
-      ffmpeg -y -f lavfi -i "testsrc2=size=1080x1920:rate=30" -f lavfi -i "sine=frequency=$freq:sample_rate=44100" \
-        -t 8 -c:v libx264 -pix_fmt yuv420p -b:v 1500k -c:a aac -b:a 128k -shortest "$vid_path" >/dev/null 2>&1
+      img1="$STORY_IMG_DIR/story_${i}.jpg"
+      [ -f "$img1" ] || img1="$POST_IMG_DIR/post_${i}.jpg"
+      img2_idx=$(( (i * 3 - 1) % 60 + 1 ))
+      img2="$POST_IMG_DIR/post_${img2_idx}.jpg"
+      [ -f "$img2" ] || img2="$img1"
+      if [ -f "$img1" ] && [ -f "$img2" ]; then
+        filter="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p,zoompan=z='min(zoom+0.0012,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=135:s=1080x1920:fps=30[v0];[1:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p,zoompan=z='1.15-0.001*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=135:s=1080x1920:fps=30[v1];[v0][v1]xfade=transition=fade:duration=1:offset=3.5,format=yuv420p[v]"
+        ffmpeg -y -loglevel error -i "$img1" -i "$img2" -f lavfi -i "anullsrc=r=44100:cl=stereo" \
+          -filter_complex "$filter" -map "[v]" -map "2:a" \
+          -t 8 -c:v libx264 -profile:v main -level 4.0 -pix_fmt yuv420p -b:v 1500k -c:a aac -b:a 128k -movflags +faststart "$vid_path" >/dev/null 2>&1
+      else
+        ffmpeg -y -loglevel error -f lavfi -i "color=c=0x111827:s=1080x1920:r=30" -f lavfi -i "anullsrc=r=44100:cl=stereo" \
+          -t 8 -c:v libx264 -profile:v main -level 4.0 -pix_fmt yuv420p -b:v 1500k -c:a aac -b:a 128k -movflags +faststart -shortest "$vid_path" >/dev/null 2>&1
+      fi
     fi
   done
 else
@@ -396,10 +407,8 @@ if command -v docker &>/dev/null; then
 
   SQL_CMD="
   UPDATE auth_users SET email_verified = true WHERE email LIKE '%@demo.local';
-  UPDATE auth_users SET role = 'ADMIN', is_verified = true, verified_until = NOW() + INTERVAL '365 days' WHERE username = 'demo';
-  INSERT INTO auth_user_roles (id, user_id, role, created_at)
-  SELECT gen_random_uuid(), id, 'ADMIN', NOW() FROM auth_users WHERE username = 'demo'
-  ON CONFLICT (user_id, role) DO NOTHING;
+  UPDATE auth_users SET role = 'USER', is_verified = true, verified_until = NOW() + INTERVAL '365 days' WHERE username = 'demo';
+  DELETE FROM auth_user_roles WHERE user_id = (SELECT id FROM auth_users WHERE username = 'demo');
   "
   if docker exec -i "$CONTAINER" psql -U snapgram -d snapgram -c "$SQL_CMD" &>/dev/null; then
     echo "  [OK] Đã thực thi SQL cập nhật thành công trên container $CONTAINER."
@@ -664,10 +673,13 @@ echo "  [OK] Đã tạo $COUNT_STORIES_CREATED/$STORY_COUNT stories."
 # 12. BƯỚC 9: KÍCH HOẠT SPRING BATCH (RECOMMENDER)
 if [ "$SKIP_BATCH" = false ]; then
   echo "====> Bước 9: Kích hoạt Spring Batch jobs (recommender)..."
-  IFS='|' read -r _ _ _ demo_token _ <<< "${USER_RECORDS[0]}"
+  ADMIN_EMAIL="${ADMIN_INITIAL_EMAIL:-admin@snapgram.com}"
+  ADMIN_PASSWORD="${ADMIN_INITIAL_PASSWORD:-admin123}"
+  admin_res=$(api_request "POST" "/api/auth/admin/login" "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+  admin_token=$(echo "$admin_res" | jq -r '.accessToken // empty' 2>/dev/null || true)
   for job in trendingPostsJob userRecommendationJob; do
     echo "  -> Đang chạy job $job..."
-    run_res=$(api_request "POST" "/api/admin/batch/jobs/$job/run" "" "$demo_token")
+    run_res=$(api_request "POST" "/api/admin/batch/jobs/$job/run" "" "$admin_token")
     exec_id=$(echo "$run_res" | jq -r '.jobExecutionId // empty')
     if [ -n "$exec_id" ]; then
       COUNT_BATCH_RUN=$((COUNT_BATCH_RUN + 1))
@@ -718,5 +730,5 @@ echo "     -> Khuyến nghị: Chạy lại script ngay trước buổi demo."
 echo "  2. Đăng nhập tài khoản demo:"
 echo "     - Email:    demo@demo.local"
 echo "     - Password: $DEMO_PASSWORD"
-echo "     - Quyền:    ADMIN (kèm Verified Blue Tick)"
+echo "     - Quyền:    USER (kèm Verified Blue Tick)"
 echo "========================================================================"

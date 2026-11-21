@@ -2,6 +2,7 @@ package com.example.auth.security;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
@@ -17,38 +18,54 @@ public class CookieUtils {
     public static final String REFRESH_TOKEN_COOKIE = "refresh_token";
 
     private final boolean secureCookie;
+    private final String cookieDomain;
 
-    public CookieUtils(@Value("${app.cookie.secure:false}") boolean secureCookie) {
+    public CookieUtils(boolean secureCookie) {
+        this(secureCookie, "");
+    }
+
+    @Autowired
+    public CookieUtils(
+            @Value("${app.cookie.secure:false}") boolean secureCookie,
+            @Value("${app.cookie.domain:}") String cookieDomain) {
         this.secureCookie = secureCookie;
+        this.cookieDomain = cookieDomain != null ? cookieDomain.trim() : "";
+    }
+
+    private ResponseCookie.ResponseCookieBuilder applyDomain(ResponseCookie.ResponseCookieBuilder builder) {
+        if (!cookieDomain.isBlank()) {
+            builder.domain(cookieDomain);
+        }
+        return builder;
     }
 
     public ResponseCookie createAccessTokenCookie(String token, Duration maxAge) {
-        return ResponseCookie.from(ACCESS_TOKEN_COOKIE, token)
+        return applyDomain(ResponseCookie.from(ACCESS_TOKEN_COOKIE, token)
                 .httpOnly(true)
                 .secure(secureCookie)
                 .path("/")
                 .sameSite("Lax")
-                .maxAge(maxAge)
+                .maxAge(maxAge))
                 .build();
     }
 
     public ResponseCookie createAdminAccessTokenCookie(String token, Duration maxAge) {
-        return ResponseCookie.from(ADMIN_ACCESS_TOKEN_COOKIE, token)
+        return applyDomain(ResponseCookie.from(ADMIN_ACCESS_TOKEN_COOKIE, token)
                 .httpOnly(true)
                 .secure(secureCookie)
                 .path("/")
                 .sameSite("Strict")
-                .maxAge(maxAge)
+                .maxAge(maxAge))
                 .build();
     }
 
     public ResponseCookie createRefreshTokenCookie(String token, Duration maxAge) {
-        return ResponseCookie.from(REFRESH_TOKEN_COOKIE, token)
+        return applyDomain(ResponseCookie.from(REFRESH_TOKEN_COOKIE, token)
                 .httpOnly(true)
                 .secure(secureCookie)
                 .path("/api/auth")
                 .sameSite("Lax")
-                .maxAge(maxAge)
+                .maxAge(maxAge))
                 .build();
     }
 
@@ -57,12 +74,12 @@ public class CookieUtils {
     }
 
     public ResponseCookie clearCookie(String name, String path, String sameSite) {
-        return ResponseCookie.from(name, "")
+        return applyDomain(ResponseCookie.from(name, "")
                 .httpOnly(true)
                 .secure(secureCookie)
                 .path(path)
                 .sameSite(sameSite)
-                .maxAge(0)
+                .maxAge(0))
                 .build();
     }
 

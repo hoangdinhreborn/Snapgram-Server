@@ -232,7 +232,7 @@ services:
       # khong khai bao ${...} o day vi compose noi suy tu shell (trong) va de len env_file.
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # FRONTEND_URL lay tu env_file ../.env (khong khai bao ${...} de tranh shell rong de len env_file).
     depends_on:
       postgres-auth:
         condition: service_healthy
@@ -337,9 +337,7 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_EXTERNAL_ENDPOINT: ${MINIO_EXTERNAL_ENDPOINT:-http://localhost:9000}
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000/snapgram-media}
-      # OLLAMA_* lay tu env_file ../.env — khong khai bao ${...} o day vi compose noi suy tu shell de len env_file
+      # MINIO_EXTERNAL_ENDPOINT / MINIO_PUBLIC_URL / OLLAMA_* lay tu env_file ../.env — khong khai bao ${...} o day vi compose noi suy tu shell de len env_file
     depends_on:
       postgres-media:
         condition: service_healthy

@@ -1,6 +1,6 @@
 Project snapgram {
   database_type: 'PostgreSQL'
-  Note: 'SNAPGRAM DBML v2.1. Seven PostgreSQL DBs, one DB per service. Solid relationships = real FK inside the same DB. Dashed-looking semantics are represented by Ref comments/notes for cross-service logical UUID references; these are NOT SQL FKs across databases.'
+  Note: 'SNAPGRAM DBML v3.0. Seven PostgreSQL DBs, one DB per service. Solid relationships = real FK inside the same DB. Dashed-looking semantics are represented by Ref comments/notes for cross-service logical UUID references; these are NOT SQL FKs across databases. Fully synchronized with all Flyway migrations.'
 }
 
 // ============================================================
@@ -37,12 +37,15 @@ Table auth_users {
   is_banned boolean [not null, default: false]
   banned_at timestamptz
   ban_reason varchar(255)
+  is_verified boolean [not null, default: false, note: 'Blue tick verification status granted via payment.completed event']
+  verified_until timestamptz [note: 'Cumulative expiration timestamp of blue tick verification']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 
   Indexes {
     role
     is_banned
+    verified_until
   }
 }
 
@@ -179,6 +182,32 @@ Table auth_password_resets {
   Note: 'Token is single-use (used_at set on first use). Expires in 15 minutes. Multiple active tokens allowed per user but only latest is shown — old ones are invalidated on new request.'
 }
 
+Table auth_payment_processed_events {
+  event_id varchar(128) [pk, note: 'Idempotency key: stable eventId from payment-service']
+  user_id uuid [not null]
+  product_code varchar(64) [not null]
+  granted_until timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id
+  }
+}
+
+Table auth_oauth_accounts {
+  id uuid [pk]
+  user_id uuid [not null]
+  provider varchar(50) [not null, note: 'FACEBOOK / GOOGLE']
+  provider_user_id varchar(255) [not null]
+  email varchar(255)
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (provider, provider_user_id) [unique]
+    user_id
+  }
+}
+
 Ref: auth_users.id < auth_user_roles.user_id
 Ref: auth_roles.name < auth_user_roles.role
 Ref: auth_roles.id < auth_role_permissions.role_id
@@ -189,6 +218,8 @@ Ref: auth_users.id < auth_blocks.blocked_id
 Ref: auth_users.id < auth_notes.user_id
 Ref: auth_users.id < auth_email_verifications.user_id
 Ref: auth_users.id < auth_password_resets.user_id
+Ref: auth_users.id < auth_payment_processed_events.user_id
+Ref: auth_users.id < auth_oauth_accounts.user_id
 
 TableGroup AUTH_DB {
   auth_users
@@ -201,6 +232,8 @@ TableGroup AUTH_DB {
   auth_notes
   auth_email_verifications
   auth_password_resets
+  auth_payment_processed_events
+  auth_oauth_accounts
 }
 
 // ============================================================
@@ -299,7 +332,9 @@ Table content_comments {
   id uuid [pk]
   post_id uuid [not null]
   author_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
-  content text [not null]
+  content text [note: 'Nullable when comment contains only media (image/GIF/sticker)']
+  media_url varchar(1000)
+  media_type varchar(20) [note: 'IMAGE / GIF / STICKER']
   parent_comment_id uuid [note: 'NULL = root comment; non-NULL = reply. Business rule: max depth 1.']
   like_count bigint [not null, default: 0]
   created_at timestamptz [not null]
@@ -310,6 +345,7 @@ Table content_comments {
     author_id
     parent_comment_id
     created_at
+    media_type
   }
 
   Note: 'Self-reference implements Comment → Reply. Parent must belong to the same post; service enforces one reply level.'
@@ -519,6 +555,28 @@ Table content_post_mentions {
   }
 }
 
+Table support_tickets {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  category varchar(50) [not null, note: 'ACCOUNT / CONTENT / BILLING / TECHNICAL / OTHER']
+  subject varchar(200) [not null]
+  description text [not null]
+  attachments jsonb [default: `'[]'`]
+  status varchar(20) [not null, default: 'OPEN', note: 'OPEN / IN_PROGRESS / RESOLVED / CLOSED']
+  priority varchar(20) [not null, default: 'NORMAL', note: 'LOW / NORMAL / HIGH / URGENT']
+  admin_reply text
+  responder_id uuid [note: 'Logical reference → auth_db.auth_users.id']
+  resolved_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id
+    status
+    created_at
+  }
+}
+
 Ref: content_posts.id < content_comments.post_id
 Ref: content_posts.id < content_post_media.post_id
 Ref: content_comments.id < content_comments.parent_comment_id
@@ -555,6 +613,7 @@ TableGroup CONTENT_DB {
   content_post_hashtags
   content_close_friends
   content_post_mentions
+  support_tickets
 }
 
 // ============================================================
@@ -796,51 +855,277 @@ Table recommender_mute_view {
   }
 }
 
+Table recommender_trending_post {
+  id uuid [pk]
+  post_id uuid [not null, unique, note: 'Logical reference → content_db.content_posts.id']
+  author_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  content_type varchar(20) [not null]
+  caption text
+  tags text
+  score double [not null]
+  likes_count bigint [not null, default: 0]
+  rank integer [not null, default: 0]
+  calculated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (calculated_at, score)
+    post_id [unique]
+  }
+
+  Note: 'Batch job result: Top trending posts computed periodically based on interaction and recency decay.'
+}
+
+Table recommender_user_recommendation {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  recommended_user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  score double [not null]
+  mutual_friends_count bigint [not null, default: 0]
+  reason varchar(255)
+  calculated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (user_id, score)
+    (user_id, recommended_user_id) [unique]
+  }
+
+  Note: 'Batch job result: Personalized user recommendations computed from graph mutuals and common interests.'
+}
+
+Table BATCH_JOB_INSTANCE {
+  JOB_INSTANCE_ID bigint [pk]
+  VERSION bigint
+  JOB_NAME varchar(100) [not null]
+  JOB_KEY varchar(32) [not null]
+
+  Indexes {
+    (JOB_NAME, JOB_KEY) [unique]
+  }
+}
+
+Table BATCH_JOB_EXECUTION {
+  JOB_EXECUTION_ID bigint [pk]
+  VERSION bigint
+  JOB_INSTANCE_ID bigint [not null]
+  CREATE_TIME timestamp [not null]
+  START_TIME timestamp
+  END_TIME timestamp
+  STATUS varchar(10)
+  EXIT_CODE varchar(2500)
+  EXIT_MESSAGE varchar(2500)
+  LAST_UPDATED timestamp
+}
+
+Table BATCH_JOB_EXECUTION_PARAMS {
+  JOB_EXECUTION_ID bigint [not null]
+  PARAMETER_NAME varchar(100) [not null]
+  PARAMETER_TYPE varchar(100) [not null]
+  PARAMETER_VALUE varchar(2500)
+  IDENTIFYING char(1) [not null]
+}
+
+Table BATCH_STEP_EXECUTION {
+  STEP_EXECUTION_ID bigint [pk]
+  VERSION bigint [not null]
+  STEP_NAME varchar(100) [not null]
+  JOB_EXECUTION_ID bigint [not null]
+  CREATE_TIME timestamp [not null]
+  START_TIME timestamp
+  END_TIME timestamp
+  STATUS varchar(10)
+  COMMIT_COUNT bigint
+  READ_COUNT bigint
+  FILTER_COUNT bigint
+  WRITE_COUNT bigint
+  READ_SKIP_COUNT bigint
+  WRITE_SKIP_COUNT bigint
+  PROCESS_SKIP_COUNT bigint
+  ROLLBACK_COUNT bigint
+  EXIT_CODE varchar(2500)
+  EXIT_MESSAGE varchar(2500)
+  LAST_UPDATED timestamp
+}
+
+Table BATCH_STEP_EXECUTION_CONTEXT {
+  STEP_EXECUTION_ID bigint [pk]
+  SHORT_CONTEXT varchar(2500) [not null]
+  SERIALIZED_CONTEXT text
+}
+
+Table BATCH_JOB_EXECUTION_CONTEXT {
+  JOB_EXECUTION_ID bigint [pk]
+  SHORT_CONTEXT varchar(2500) [not null]
+  SERIALIZED_CONTEXT text
+}
+
+Ref: BATCH_JOB_INSTANCE.JOB_INSTANCE_ID < BATCH_JOB_EXECUTION.JOB_INSTANCE_ID
+Ref: BATCH_JOB_EXECUTION.JOB_EXECUTION_ID < BATCH_JOB_EXECUTION_PARAMS.JOB_EXECUTION_ID
+Ref: BATCH_JOB_EXECUTION.JOB_EXECUTION_ID < BATCH_STEP_EXECUTION.JOB_EXECUTION_ID
+Ref: BATCH_STEP_EXECUTION.STEP_EXECUTION_ID - BATCH_STEP_EXECUTION_CONTEXT.STEP_EXECUTION_ID
+Ref: BATCH_JOB_EXECUTION.JOB_EXECUTION_ID - BATCH_JOB_EXECUTION_CONTEXT.JOB_EXECUTION_ID
+
 TableGroup RECOMMENDER_DB {
   recommender_post_view
   recommender_interaction_view
   recommender_follow_view
   recommender_block_view
   recommender_mute_view
+  recommender_trending_post
+  recommender_user_recommendation
+}
+
+TableGroup SPRING_BATCH {
+  BATCH_JOB_INSTANCE
+  BATCH_JOB_EXECUTION
+  BATCH_JOB_EXECUTION_PARAMS
+  BATCH_STEP_EXECUTION
+  BATCH_STEP_EXECUTION_CONTEXT
+  BATCH_JOB_EXECUTION_CONTEXT
+}
+
+// ============================================================
+// 6. PAYMENT DB — payment-service
+// Source of truth: orders, payment transactions, idempotency logs, outbox
+// ============================================================
+Table payment_orders {
+  id uuid [pk]
+  user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
+  order_id varchar(64) [not null, unique]
+  provider varchar(32) [not null, default: 'VNPAY', note: 'VNPAY / MOMO']
+  product_code varchar(64) [not null, note: 'BLUE_TICK_1M, etc.']
+  amount bigint [not null, note: 'check: amount > 0']
+  currency varchar(8) [not null, default: 'VND']
+  order_info varchar(255)
+  status varchar(16) [not null, default: 'PENDING', note: 'PENDING / SUCCESS / FAILED / EXPIRED']
+  provider_response_code varchar(8)
+  provider_channel varchar(32)
+  provider_pay_date timestamptz
+  provider_transaction_no varchar(64)
+  completed_event_id varchar(128)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  expired_at timestamptz [not null]
+
+  Indexes {
+    (provider, provider_transaction_no)
+    completed_event_id
+    user_id
+    status
+    expired_at
+  }
+}
+
+Table payment_event_log {
+  id uuid [pk]
+  event_id varchar(128) [not null, unique]
+  order_id varchar(64) [not null]
+  provider varchar(32) [not null, default: 'VNPAY']
+  response_code varchar(8)
+  transaction_no varchar(64)
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    order_id
+  }
+}
+
+Table payment_outbox {
+  id uuid [pk]
+  order_id varchar(64) [not null, unique]
+  event_id varchar(128) [not null]
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING / SENT / FAILED']
+  attempts integer [not null, default: 0]
+  next_attempt_at timestamptz [not null, default: `now()`]
+  lease_until timestamptz
+  last_error text
+  created_at timestamptz [not null, default: `now()`]
+  sent_at timestamptz
+
+  Indexes {
+    (status, next_attempt_at, created_at)
+  }
+}
+
+Ref: payment_orders.order_id < payment_event_log.order_id
+Ref: payment_orders.order_id - payment_outbox.order_id
+
+TableGroup PAYMENT_DB {
+  payment_orders
+  payment_event_log
+  payment_outbox
 }
 
 // ============================================================
 // 7. NOTIFICATION DB — notification-service
 // ============================================================
-Table notification_notifications {
+Table notifications {
   id uuid [pk]
   user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
   type varchar(50) [not null]
   actor_id uuid [note: 'Logical reference → auth_db.auth_users.id']
   target_type varchar(50)
-  target_id uuid [note: 'Logical reference depending on target_type']
-  payload jsonb
+  target_id varchar(255) [note: 'String representation to support compound / polymorphic target IDs']
+  payload jsonb [not null]
   is_read boolean [not null, default: false]
-  created_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
 
   Indexes {
-    user_id
+    (user_id, created_at)
     (user_id, is_read)
-    created_at
+    (target_type, target_id)
   }
 }
 
-Table notification_device_tokens {
+Table device_tokens {
   id uuid [pk]
   user_id uuid [not null, note: 'Logical reference → auth_db.auth_users.id']
-  token varchar(500) [not null, unique]
+  token varchar(500) [not null]
   platform varchar(20) [not null, note: 'ANDROID / IOS / WEB']
-  last_seen_at timestamptz
-  created_at timestamptz [not null]
+  last_seen_at timestamptz [not null, default: `now()`]
+  created_at timestamptz [not null, default: `now()`]
 
   Indexes {
     user_id
+    (user_id, token) [unique]
   }
 }
 
+Table notification_processed_events {
+  id uuid [pk]
+  topic varchar(200) [not null]
+  event_id uuid [not null]
+  processed_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (topic, event_id) [unique]
+  }
+
+  Note: 'Idempotency key table: ensures at-most-once processing of incoming Kafka events.'
+}
+
+Table notification_push_outbox {
+  id uuid [pk]
+  notification_id uuid [not null]
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING / SENT / FAILED']
+  grouped_update boolean [not null, default: false]
+  attempts integer [not null, default: 0]
+  next_attempt_at timestamptz [not null, default: `now()`]
+  lease_until timestamptz
+  last_error text
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (status, next_attempt_at, created_at)
+  }
+}
+
+Ref: notifications.id < notification_push_outbox.notification_id
+
 TableGroup NOTIFICATION_DB {
-  notification_notifications
-  notification_device_tokens
+  notifications
+  device_tokens
+  notification_processed_events
+  notification_push_outbox
 }
 
 // ============================================================
@@ -868,6 +1153,8 @@ Ref: auth_users.id < content_highlights.user_id
 Ref: auth_users.id < content_close_friends.owner_id
 Ref: auth_users.id < content_close_friends.friend_id
 Ref: auth_users.id < content_post_mentions.mentioned_user_id
+Ref: auth_users.id < support_tickets.user_id
+Ref: auth_users.id < support_tickets.responder_id
 
 // MEDIA → CONTENT
 Ref: media_files.id < content_posts.media_id
@@ -897,18 +1184,25 @@ Ref: auth_users.id < recommender_block_view.blocker_id
 Ref: auth_users.id < recommender_block_view.blocked_id
 Ref: auth_users.id < recommender_mute_view.muter_id
 Ref: auth_users.id < recommender_mute_view.muted_id
+Ref: auth_users.id < recommender_trending_post.author_id
+Ref: auth_users.id < recommender_user_recommendation.user_id
+Ref: auth_users.id < recommender_user_recommendation.recommended_user_id
 
 // CONTENT → RECOMMENDER
 Ref: content_posts.id < recommender_post_view.post_id
 Ref: content_posts.id < recommender_interaction_view.post_id
+Ref: content_posts.id < recommender_trending_post.post_id
+
+// AUTH → PAYMENT
+Ref: auth_users.id < payment_orders.user_id
 
 // AUTH → NOTIFICATION
-Ref: auth_users.id < notification_notifications.user_id
-Ref: auth_users.id < notification_notifications.actor_id
-Ref: auth_users.id < notification_device_tokens.user_id
+Ref: auth_users.id < notifications.user_id
+Ref: auth_users.id < notifications.actor_id
+Ref: auth_users.id < device_tokens.user_id
 
 // CONTENT / CHAT → NOTIFICATION (polymorphic target IDs are represented by fields, not direct FK)
-// notification_notifications.target_id → content_posts.id / content_comments.id / chat_messages.id / etc.
+// notifications.target_id → content_posts.id / content_comments.id / chat_messages.id / etc.
 
 // BOT → CHAT / AUTH
 // PLAN does not define bot DB schema, so relationships are intentionally not modeled yet.
@@ -927,3 +1221,7 @@ Ref: auth_users.id < notification_device_tokens.user_id
 // 10. auth_password_resets: token is SHA-256 hashed before storage; raw token sent via email only once; 15min TTL; single-use (used_at).
 // 11. auth_users: is_banned, banned_at, ban_reason support Admin ban moderation (V3 migration).
 // 12. Comment replies: Instagram-style flattening (replying to a child comment resolves parent_comment_id to root comment).
+// 13. Blue tick verification: granted via payment.completed event, cumulative duration in verified_until.
+// 14. Transactional Outbox pattern: payment_outbox and notification_push_outbox ensure reliable event delivery to Kafka and Push notification dispatchers without distributed transactions.
+// 15. Idempotent Consumers: auth_payment_processed_events and notification_processed_events prevent duplicate execution of Kafka messages.
+// 16. Spring Batch metadata: BATCH_* tables in recommender_db track job instances, executions, and step contexts.

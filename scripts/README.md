@@ -67,8 +67,9 @@ Sau khi chạy xong script, bạn có thể đăng nhập vào ứng dụng web/
 
 - **Email**: `demo@demo.local`
 - **Mật khẩu**: `Demo@12345`
-- **Quyền hạn**: `ADMIN`
+- **Quyền hạn**: `USER` (hiển thị công khai trên feed/explore)
 - **Huy hiệu**: Đã kích hoạt **Tick xanh (Verified Badge)** và xác thực email.
+- **Tài khoản Admin Portal**: `admin@snapgram.com` (mật khẩu cấu hình trong `ADMIN_INITIAL_PASSWORD`).
 
 *(Các tài khoản phụ từ `user1@demo.local` đến `user20@demo.local` đều có cùng mật khẩu `Demo@12345`)*.
 
